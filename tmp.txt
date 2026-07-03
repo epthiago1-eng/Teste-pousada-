@@ -1,0 +1,21 @@
+3877:  const handleCancelBooking = (booking: Booking) => {
+3878-    setBookingToCancel(booking);
+3879-    setIsCancelBookingModalOpen(true);
+3880-  };
+3881-
+3882-  const confirmCancelBooking = () => {
+3883-    if (!bookingToCancel) return;
+3884-    
+3885-    const booking = bookingToCancel;
+3886-    const fee = PaymentService.calculateCancellationFee(booking, 'moderate');
+3887-    
+3888-    if (fee > 0) {
+3889-      const link = PaymentService.generatePaymentLink(booking, fee, 'cancellation_fee');
+3890-      setPaymentLinks(prev => [...prev, link]);
+3891-      setBookings(prev => prev.map(b => 
+3892-        b.id === booking.id 
+3893-          ? { ...b, status: 'cancelled', cancellationFee: fee, paymentLinkId: link.id } 
+3894-          : b
+3895-      ));
+3896-      toast.warning('Reserva cancelada com taxa', {
+3897-        description: `Taxa de cancelamento de R$ ${(fee || 0).toFixed(2)} aplicada. Link enviado.`,
