@@ -1,0 +1,162 @@
+rules_version = '2';
+
+// ============================================================
+// PousadaGest — Regras de segurança do Firestore (multi-tenant)
+// Publique com: firebase deploy --only firestore:rules
+// ============================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Helpers ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function belongsTo(tenantId) {
+      return signedIn() && userDoc().tenantId == tenantId && userDoc().status == 'active';
+    }
+    function hasRole(tenantId, roles) {
+      return belongsTo(tenantId) && userDoc().role in roles;
+    }
+
+    // ---------- Perfis de usuário ----------
+    match /users/{uid} {
+      // O próprio usuário lê seu perfil; admins/gerentes do mesmo tenant também.
+      allow get: if signedIn() && (request.auth.uid == uid || userDoc().tenantId == resource.data.tenantId);
+      allow list: if signedIn() && hasRole(resource.data.tenantId, ['admin', 'manager']);
+
+      // Criação do próprio perfil em 2 cenários:
+      // 1) Dono criando a pousada (vira admin)
+      // 2) Entrando com código de convite (role vem do convite)
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasAll(['name', 'email', 'tenantId', 'role', 'status'])
+        && (
+          (request.resource.data.role == 'admin'
+            && get(/databases/$(database)/documents/tenants/$(request.resource.data.tenantId)).data.ownerUid == request.auth.uid)
+          ||
+          (get(/databases/$(database)/documents/tenants/$(request.resource.data.tenantId)/invites/$(request.resource.data.inviteCode)).data.used == false
+            && get(/databases/$(database)/documents/tenants/$(request.resource.data.tenantId)/invites/$(request.resource.data.inviteCode)).data.role == request.resource.data.role
+            && request.resource.data.status == 'active')
+        );
+
+      // Admin pode ativar/desativar e mudar role de usuários do seu tenant.
+      allow update: if signedIn()
+        && ((request.auth.uid == uid
+              && request.resource.data.tenantId == resource.data.tenantId
+              && request.resource.data.role == resource.data.role)
+            || hasRole(resource.data.tenantId, ['admin']));
+      allow delete: if hasRole(resource.data.tenantId, ['admin']);
+    }
+
+    // ---------- Slugs públicos (página de reservas) ----------
+    match /slugs/{slug} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.tenantId is string
+        && hasRole(request.resource.data.tenantId, ['admin', 'manager']);
+      allow update, delete: if hasRole(resource.data.tenantId, ['admin', 'manager']);
+    }
+
+    // ---------- Tenant (pousada) ----------
+    match /tenants/{tenantId} {
+      // Dados básicos da pousada são públicos (página de reservas / portal do hóspede).
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if hasRole(tenantId, ['admin', 'manager']);
+      allow delete: if false; // exclusão de tenant só via suporte/console
+
+      // ---------- Convites ----------
+      match /invites/{code} {
+        // get: quem tem o código consegue validá-lo; list: só admin (evita enumeração)
+        allow get: if signedIn();
+        allow list: if hasRole(tenantId, ['admin']);
+        allow create, delete: if hasRole(tenantId, ['admin']);
+        // O convidado só pode marcar como usado.
+        allow update: if hasRole(tenantId, ['admin'])
+          || (signedIn() && request.resource.data.used == true
+              && resource.data.used == false
+              && request.resource.data.role == resource.data.role);
+      }
+
+      // ---------- Dados públicos (sem informações de hóspedes) ----------
+      match /publicData/{docId} {
+        allow read: if true; // categorias, fotos e faixas ocupadas (sem dados pessoais)
+        allow write: if hasRole(tenantId, ['admin', 'manager', 'receptionist']);
+      }
+
+      // ---------- Solicitações de reserva vindas da página pública ----------
+      match /bookingRequests/{reqId} {
+        allow create: if request.resource.data.keys().hasAll(['guestName', 'guestPhone', 'checkIn', 'checkOut', 'createdAt'])
+          && request.resource.data.guestName is string
+          && request.resource.data.guestName.size() > 1
+          && request.resource.data.guestName.size() < 120
+          && request.resource.data.guestPhone is string
+          && request.resource.data.guestPhone.size() < 40;
+        allow read, update, delete: if hasRole(tenantId, ['admin', 'manager', 'receptionist']);
+      }
+
+      // ---------- FNRH enviada pelo hóspede (link público) ----------
+      match /fnrh/{formId} {
+        allow create: if request.resource.data.keys().hasAll(['name', 'document', 'createdAt'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 1
+          && request.resource.data.name.size() < 150;
+        allow read, update, delete: if hasRole(tenantId, ['admin', 'manager', 'receptionist']);
+      }
+
+      // ---------- Quartos ----------
+      match /rooms/{id} {
+        allow read: if belongsTo(tenantId);
+        allow create, delete: if hasRole(tenantId, ['admin', 'manager']);
+        // Governança só pode atualizar status de limpeza.
+        allow update: if hasRole(tenantId, ['admin', 'manager', 'receptionist'])
+          || (hasRole(tenantId, ['housekeeper'])
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']));
+      }
+
+      match /categories/{id} {
+        allow read: if belongsTo(tenantId);
+        allow write: if hasRole(tenantId, ['admin', 'manager']);
+      }
+
+      // ---------- Reservas, clientes, consumo ----------
+      match /bookings/{id} {
+        allow read: if belongsTo(tenantId);
+        allow write: if hasRole(tenantId, ['admin', 'manager', 'receptionist']);
+      }
+      match /clients/{id} {
+        allow read: if hasRole(tenantId, ['admin', 'manager', 'receptionist']);
+        allow write: if hasRole(tenantId, ['admin', 'manager', 'receptionist']);
+      }
+      match /products/{id} {
+        allow read: if belongsTo(tenantId);
+        allow write: if hasRole(tenantId, ['admin', 'manager', 'receptionist']);
+      }
+
+      // ---------- Financeiro e equipe (restritos) ----------
+      match /transactions/{id} {
+        allow read, write: if hasRole(tenantId, ['admin', 'manager']);
+        // Recepção pode lançar receita de hospedagem no check-out.
+        allow create: if hasRole(tenantId, ['receptionist'])
+          && request.resource.data.type == 'income'
+          && request.resource.data.category == 'booking';
+      }
+      match /staff/{id} {
+        allow read, write: if hasRole(tenantId, ['admin', 'manager']);
+      }
+
+      // ---------- Tarifas ----------
+      match /ratePlans/{id} {
+        allow read: if belongsTo(tenantId);
+        allow write: if hasRole(tenantId, ['admin', 'manager']);
+      }
+    }
+
+    // Nega tudo que não foi explicitamente permitido.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
