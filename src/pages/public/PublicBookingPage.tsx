@@ -8,6 +8,10 @@ import { db } from '../../lib/firebase';
 import { usePublicTenant } from './usePublicTenant';
 import { Button, Field, Input, Textarea } from '../../components/ui';
 import { brl, nights, rangesOverlap, todayISO } from '../../lib/utils';
+import { ScrollFrameHero } from '../../components/ScrollFrameHero';
+
+const SCROLL_HERO_FRAME_COUNT = 65;
+const scrollHeroFramePath = (i: number) => `/booking-scroll/frame-${String(i).padStart(3, '0')}.webp`;
 
 /** Galeria: foto principal + miniaturas clicáveis. */
 function Gallery({ photos, name, badge }: { photos: string[]; name: string; badge: ReactNode }) {
@@ -112,26 +116,19 @@ export default function PublicBookingPage() {
 
   return (
     <div className="min-h-dvh bg-slate-50">
-      {/* Hero com foto de fundo */}
-      <header className="relative overflow-hidden px-4 pb-14 pt-12 text-center text-white">
-        {tenant.heroImageUrl?.trim() ? (
-          <>
-            <img src={tenant.heroImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-b from-slate-900/60 via-slate-900/45 to-slate-900/70" />
-          </>
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-brand-800 to-brand-900" />
-        )}
-        <div className="relative">
-          {tenant.logoUrl && <img src={tenant.logoUrl} alt="" className="mx-auto mb-3 h-14 w-14 rounded-2xl object-cover shadow-lg" />}
-          <h1 className="text-3xl font-extrabold drop-shadow">{tenant.name}</h1>
-          {tenant.description && <p className="mx-auto mt-2 max-w-lg text-sm text-white/85 drop-shadow">{tenant.description}</p>}
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-4 text-xs text-white/75">
-            {tenant.address && <span className="flex items-center gap-1"><MapPin size={13} /> {tenant.address}</span>}
-            {tenant.phone && <span className="flex items-center gap-1"><Phone size={13} /> {tenant.phone}</span>}
-          </div>
+      {/* Hero cinemático: animação controlada pelo scroll */}
+      <ScrollFrameHero frameCount={SCROLL_HERO_FRAME_COUNT} framePath={scrollHeroFramePath}>
+        {tenant.logoUrl && <img src={tenant.logoUrl} alt="" className="mx-auto mb-3 h-14 w-14 rounded-2xl object-cover shadow-lg" />}
+        <h1 className="text-3xl font-extrabold drop-shadow sm:text-5xl">{tenant.name}</h1>
+        {tenant.description && <p className="mx-auto mt-3 max-w-lg text-sm text-white/85 drop-shadow sm:text-base">{tenant.description}</p>}
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs text-white/75 sm:text-sm">
+          {tenant.address && <span className="flex items-center gap-1"><MapPin size={13} /> {tenant.address}</span>}
+          {tenant.phone && <span className="flex items-center gap-1"><Phone size={13} /> {tenant.phone}</span>}
         </div>
-      </header>
+        <div className="mt-8 animate-bounce text-white/60">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M19 12l-7 7-7-7" /></svg>
+        </div>
+      </ScrollFrameHero>
 
       <main className="mx-auto max-w-2xl px-4 pb-16">
         {sent ? (
