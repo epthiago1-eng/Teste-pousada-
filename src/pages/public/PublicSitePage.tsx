@@ -54,9 +54,10 @@ const stayTotal = (cat: PublicCategory, checkIn: string, checkOut: string) => {
    pré-carregada e desenhada num <canvas> conforme o progresso do scroll.
    ================================================================ */
 const HERO_FRAME_COUNT = 32;
-const heroFramePath = (i: number) => `/booking-scroll/frame-${String(i).padStart(3, '0')}.webp`;
+const heroFramePath = (i: number) => `/booking-scroll/frame-${String(i).padStart(3, '0')}.avif`;
+const heroFrameFallbackPath = (i: number) => `/booking-scroll/frame-${String(i).padStart(3, '0')}.webp`;
 
-function useFrameSequence(frameCount: number, framePath: (i: number) => string) {
+function useFrameSequence(frameCount: number, framePath: (i: number) => string, fallbackPath: (i: number) => string) {
   const imagesRef = useRef<HTMLImageElement[]>([]);
   const [firstFrameLoaded, setFirstFrameLoaded] = useState(false);
 
@@ -68,6 +69,10 @@ function useFrameSequence(frameCount: number, framePath: (i: number) => string) 
       // Prioriza os primeiros frames (visíveis logo de cara); o resto carrega em segundo plano.
       img.fetchPriority = i <= 4 ? 'high' : 'low';
       img.decoding = 'async';
+      // AVIF é bem mais leve; se o navegador não suportar, cai pro WebP automaticamente.
+      img.onerror = () => {
+        if (img.src.endsWith('.avif')) img.src = fallbackPath(i);
+      };
       img.src = framePath(i);
       if (i === 1) img.onload = () => !cancelled && setFirstFrameLoaded(true);
       images.push(img);
@@ -88,7 +93,7 @@ function useFrameSequence(frameCount: number, framePath: (i: number) => string) 
 function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomPhoto?: string; onReserve: () => void }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { imagesRef, firstFrameLoaded } = useFrameSequence(HERO_FRAME_COUNT, heroFramePath);
+  const { imagesRef, firstFrameLoaded } = useFrameSequence(HERO_FRAME_COUNT, heroFramePath, heroFrameFallbackPath);
   const [p, setP] = useState(0); // progresso 0..1 dentro do trilho
 
   const drawFrame = (progress: number) => {
@@ -187,7 +192,8 @@ function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomP
         <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center text-white">
           <div style={{ opacity: t1, transform: `translateY(${(1 - t1) * -22}px)` }}>
             {tenant.logoUrl && <img src={tenant.logoUrl} alt="" className="mx-auto mb-4 h-20 w-20 rounded-3xl object-cover shadow-2xl" />}
-            <h1 className="text-4xl font-extrabold drop-shadow-lg sm:text-6xl">{tenant.name}</h1>
+            <p className="text-xs font-bold uppercase tracking-[0.35em] text-white/70 drop-shadow">Bem-vindo(a) à</p>
+            <h1 className="mt-2 text-4xl italic text-white drop-shadow-lg sm:text-6xl" style={{ fontFamily: "'Playfair Display', serif" }}>{tenant.name}</h1>
             {tenant.description && <p className="mx-auto mt-3 max-w-xl text-sm text-white/85 drop-shadow sm:text-lg">{tenant.description}</p>}
           </div>
           <div className="absolute" style={{ opacity: t2, transform: `scale(${0.92 + t2 * 0.08})` }}>
@@ -196,7 +202,8 @@ function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomP
             {tenant.address && <p className="mt-2 text-sm text-white/85 drop-shadow sm:text-base">📍 {tenant.address}</p>}
           </div>
           <div className="absolute" style={{ opacity: t3, transform: `translateY(${(1 - t3) * 26}px)` }}>
-            <p className="text-3xl font-extrabold drop-shadow sm:text-5xl">Entre. Sinta-se em casa. 🌺</p>
+            <p className="text-3xl font-extrabold drop-shadow sm:text-5xl">Em frente à Praça da Baleia 🐋</p>
+            <p className="mt-2 text-sm text-white/80 drop-shadow sm:text-base">O cartão-postal de Rio das Ostras, pertinho de você</p>
             <button
               onClick={onReserve}
               className="mt-6 rounded-2xl bg-white px-8 py-4 text-base font-extrabold text-slate-900 shadow-2xl transition hover:scale-105 cursor-pointer"

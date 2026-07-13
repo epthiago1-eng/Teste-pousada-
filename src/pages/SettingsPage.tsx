@@ -5,7 +5,7 @@ import { Copy, Globe, Link2, Plus, Settings2, Trash2, UserPlus, UsersRound } fro
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Textarea } from '../components/ui';
+import { Badge, Button, Card, Field, ImageUrlField, Input, Modal, PageHeader, Select, Textarea } from '../components/ui';
 import type { Role } from '../types';
 import { DEFAULT_MESSAGE_TEMPLATES, ROLE_LABELS } from '../types';
 import { brl, cn } from '../lib/utils';
@@ -18,7 +18,10 @@ function PhoneFrame({ children }: { children: ReactNode }) {
       <div className="relative rounded-[36px] border-[10px] border-slate-900 bg-slate-900 shadow-2xl">
         {/* Notch fora da área de scroll */}
         <div className="pointer-events-none absolute left-1/2 top-1.5 z-20 h-4 w-24 -translate-x-1/2 rounded-full bg-slate-900" />
-        <div className="h-[560px] overflow-y-auto overflow-x-hidden rounded-[26px] bg-slate-100" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+        <div
+          className="h-[560px] overflow-y-auto overflow-x-hidden overscroll-contain rounded-[26px] bg-slate-100"
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y', transform: 'translateZ(0)' }}
+        >
           {children}
         </div>
       </div>
@@ -209,8 +212,8 @@ function BookingPageEditor({ tenant, categories, publicUrl }: { tenant: import('
 
       <div className="flex flex-col gap-5 lg:flex-row">
         <div className="min-w-0 flex-1 space-y-4">
-          <Field label="Foto de capa (URL)" hint="Uma foto marcante da pousada — fica no topo da página (e do portal do hóspede).">
-            <Input value={b.heroImageUrl} onChange={(e) => setB({ ...b, heroImageUrl: e.target.value })} placeholder="https://…/fachada.jpg" />
+          <Field label="Foto de capa" hint="Uma foto marcante da pousada — fica no topo da página (e do portal do hóspede). Envie do celular ou cole um link.">
+            <ImageUrlField value={b.heroImageUrl} onChange={(url) => setB({ ...b, heroImageUrl: url })} tenantId={tenant.id} folder="hero" placeholder="https://…/fachada.jpg" />
           </Field>
           <Field label="Texto de boas-vindas">
             <Textarea value={b.description} onChange={(e) => setB({ ...b, description: e.target.value })} placeholder="Pousada pé na areia em Arraial do Cabo, com café da manhã incluso…" />
@@ -328,8 +331,8 @@ function PortalEditor({ tenantId, tenant, publicUrl }: { tenantId: string; tenan
 
       {sub === 'identidade' && (
         <Card className="space-y-4 p-5">
-          <Field label="Foto de fundo do portal (URL)" hint="Uma foto bonita da pousada — aparece no topo do portal e da página de reservas.">
-            <Input value={p.heroImageUrl} onChange={(e) => setP({ ...p, heroImageUrl: e.target.value })} placeholder="https://…/fachada.jpg" />
+          <Field label="Foto de fundo do portal" hint="Uma foto bonita da pousada — aparece no topo do portal e da página de reservas. Envie do celular ou cole um link.">
+            <ImageUrlField value={p.heroImageUrl} onChange={(url) => setP({ ...p, heroImageUrl: url })} tenantId={tenantId} folder="hero" placeholder="https://…/fachada.jpg" />
           </Field>
           {p.heroImageUrl.trim() && (
             <img src={p.heroImageUrl} alt="Prévia" className="h-36 w-full rounded-xl object-cover" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />

@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { BedDouble, Layers, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { Badge, Button, Card, ConfirmDialog, EmptyState, Field, Input, Modal, PageHeader, Select, Textarea } from '../components/ui';
+import { Badge, Button, Card, ConfirmDialog, EmptyState, Field, ImageUrlField, Input, Modal, PageHeader, Select, Textarea, UploadPhotoButton } from '../components/ui';
 import type { Room, RoomCategory, RoomStatus } from '../types';
 import { ROOM_STATUS_LABELS } from '../types';
 import { brl, cn, isActiveBooking, todayISO } from '../lib/utils';
@@ -121,6 +121,7 @@ export default function RoomsPage() {
         <RoomModal
           room={roomModal === 'new' ? null : roomModal}
           categories={categories}
+          tenantId={profile?.tenantId}
           onClose={() => setRoomModal(null)}
           onSave={async (data) => { await save('rooms', data); toast.success('Quarto salvo.'); setRoomModal(null); }}
           onDelete={roomModal !== 'new' ? () => { setDeleting({ type: 'room', id: (roomModal as Room).id }); setRoomModal(null); } : undefined}
@@ -129,6 +130,7 @@ export default function RoomsPage() {
       {catModal && (
         <CategoryModal
           category={catModal === 'new' ? null : catModal}
+          tenantId={profile?.tenantId}
           onClose={() => setCatModal(null)}
           onSave={async (data) => { await save('categories', data); toast.success('Categoria salva.'); setCatModal(null); }}
         />
@@ -157,9 +159,10 @@ export default function RoomsPage() {
 
 const MAX_ROOM_PHOTOS = 6;
 
-function RoomModal({ room, categories, onClose, onSave, onDelete }: {
+function RoomModal({ room, categories, tenantId, onClose, onSave, onDelete }: {
   room: Room | null;
   categories: RoomCategory[];
+  tenantId: string | undefined;
   onClose: () => void;
   onSave: (data: Partial<Room> & { id?: string }) => void;
   onDelete?: () => void;
@@ -212,15 +215,25 @@ function RoomModal({ room, categories, onClose, onSave, onDelete }: {
       {modalTab === 'fotos' ? (
         <div className="space-y-4">
           <p className="text-xs text-slate-400">
-            Adicione até {MAX_ROOM_PHOTOS} fotos (links de imagem). A <strong>primeira é a principal</strong> — é ela que aparece em destaque na página de reservas.
+            Adicione até {MAX_ROOM_PHOTOS} fotos — envie direto do celular ou cole um link. A <strong>primeira é a principal</strong> — é ela que aparece em destaque na página de reservas.
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://…/foto-do-quarto.jpg" onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addPhoto())} />
-            <Button variant="secondary" onClick={addPhoto} disabled={photos.length >= MAX_ROOM_PHOTOS}><Plus size={15} /> Adicionar</Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={addPhoto} disabled={photos.length >= MAX_ROOM_PHOTOS}><Plus size={15} /> Adicionar link</Button>
+              <UploadPhotoButton
+                tenantId={tenantId}
+                folder="rooms"
+                onUploaded={(url) => {
+                  if (photos.length >= MAX_ROOM_PHOTOS) return toast.error(`Máximo de ${MAX_ROOM_PHOTOS} fotos por quarto.`);
+                  setPhotos((prev) => [...prev, url]);
+                }}
+              />
+            </div>
           </div>
           {photos.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-400">
-              Nenhuma foto ainda. Cole o link de uma imagem acima. 📷
+              Nenhuma foto ainda. Envie do celular ou cole o link de uma imagem acima. 📷
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -266,8 +279,9 @@ function RoomModal({ room, categories, onClose, onSave, onDelete }: {
   );
 }
 
-function CategoryModal({ category, onClose, onSave }: {
+function CategoryModal({ category, tenantId, onClose, onSave }: {
   category: RoomCategory | null;
+  tenantId: string | undefined;
   onClose: () => void;
   onSave: (data: Partial<RoomCategory> & { id?: string }) => void;
 }) {
@@ -299,8 +313,8 @@ function CategoryModal({ category, onClose, onSave }: {
           <Field label="Preço base/noite" required><Input type="number" min={0} step="0.01" value={f.basePrice || ''} onChange={(e) => setF({ ...f, basePrice: Number(e.target.value) })} placeholder="250,00" /></Field>
         </div>
         <Field label="Descrição (aparece na página pública)"><Textarea value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder="Quarto amplo com ar-condicionado, frigobar…" /></Field>
-        <Field label="Foto do quarto (URL)" hint="Cole o link de uma imagem (ex.: hospedada no Google Fotos, Imgur ou seu site). Aparece na página de reservas.">
-          <Input value={f.photoUrl} onChange={(e) => setF({ ...f, photoUrl: e.target.value })} placeholder="https://…/foto-do-quarto.jpg" />
+        <Field label="Foto do quarto" hint="Envie do celular ou cole o link de uma imagem. Aparece na página de reservas.">
+          <ImageUrlField value={f.photoUrl} onChange={(url) => setF({ ...f, photoUrl: url })} tenantId={tenantId} folder="categories" placeholder="https://…/foto-do-quarto.jpg" />
         </Field>
         {f.photoUrl.trim() && (
           <img src={f.photoUrl} alt="Prévia da foto" className="h-32 w-full rounded-xl object-cover" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />

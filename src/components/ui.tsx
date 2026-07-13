@@ -1,6 +1,9 @@
-import { type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes, useEffect } from 'react';
-import { X, Inbox } from 'lucide-react';
+import { type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes, useEffect, useRef, useState } from 'react';
+import { X, Inbox, Upload, Loader2, Image as ImageIcon } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { toast } from 'sonner';
+import { storage } from '../lib/firebase';
 import { cn } from '../lib/utils';
 
 /* ---------- Botão ---------- */
@@ -61,6 +64,101 @@ export function Field({ label, children, required, hint }: { label: string; chil
       {children}
       {hint && <span className="mt-1 block text-xs text-slate-400">{hint}</span>}
     </label>
+  );
+}
+
+/* ---------- Upload de imagem para o Firebase Storage (celular/computador) ---------- */
+const MAX_UPLOAD_MB = 8;
+
+export function useImageUpload(tenantId: string | undefined, folder: string) {
+  const [uploading, setUploading] = useState(false);
+
+  const uploadFile = async (file: File): Promise<string | null> => {
+    if (!tenantId) {
+      toast.error('Aguarde o carregamento dos dados e tente novamente.');
+      return null;
+    }
+    if (!file.type.startsWith('image/')) {
+      toast.error('Selecione um arquivo de imagem.');
+      return null;
+    }
+    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      toast.error(`Imagem muito grande — máximo ${MAX_UPLOAD_MB}MB.`);
+      return null;
+    }
+    setUploading(true);
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, '_').slice(-60);
+      const path = `tenants/${tenantId}/${folder}/${Date.now()}-${safeName}`;
+      const fileRefStorage = ref(storage, path);
+      await uploadBytes(fileRefStorage, file);
+      return await getDownloadURL(fileRefStorage);
+    } catch {
+      toast.error('Não foi possível enviar a foto. Verifique sua conexão e tente novamente.');
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return { uploadFile, uploading };
+}
+
+/** Botão "Enviar do celular" — abre a câmera/galeria e envia a foto pro Storage. */
+export function UploadPhotoButton({ tenantId, folder, onUploaded, className }: {
+  tenantId: string | undefined;
+  folder: string;
+  onUploaded: (url: string) => void;
+  className?: string;
+}) {
+  const { uploadFile, uploading } = useImageUpload(tenantId, folder);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="secondary"
+        disabled={uploading}
+        onClick={() => fileRef.current?.click()}
+        className={cn('shrink-0', className)}
+      >
+        {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+        {uploading ? 'Enviando…' : 'Enviar do celular'}
+      </Button>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          const url = await uploadFile(file);
+          if (url) onUploaded(url);
+        }}
+      />
+    </>
+  );
+}
+
+/** Campo de imagem: cola um link OU envia direto do celular/computador (valor único). */
+export function ImageUrlField({ value, onChange, tenantId, folder, placeholder }: {
+  value: string;
+  onChange: (url: string) => void;
+  tenantId: string | undefined;
+  folder: string;
+  placeholder?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="relative flex-1">
+        <ImageIcon size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
+        <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder ?? 'Cole o link de uma imagem…'} className="pl-9" />
+      </div>
+      <UploadPhotoButton tenantId={tenantId} folder={folder} onUploaded={onChange} />
+    </div>
   );
 }
 
