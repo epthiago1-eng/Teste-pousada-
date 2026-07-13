@@ -244,7 +244,7 @@ export function Modal({
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-3 safe-bottom">{footer}</div>}
+        {footer && <div className="flex flex-wrap justify-end gap-2.5 border-t border-slate-100 px-5 py-4 safe-bottom">{footer}</div>}
       </div>
     </div>
   );

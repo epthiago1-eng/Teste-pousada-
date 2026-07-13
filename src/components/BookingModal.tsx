@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { addDays, format } from 'date-fns';
 import { toast } from 'sonner';
+import { AlertTriangle, Search, UserPlus, X } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { Button, Field, Input, Modal, Select, Textarea } from './ui';
-import type { Booking, BookingStatus, Channel } from '../types';
-import { BOOKING_STATUS_LABELS, CHANNEL_LABELS } from '../types';
+import type { Booking, BookingStatus, Channel, Payment } from '../types';
+import { BOOKING_STATUS_LABELS, CHANNEL_LABELS, PAYMENT_METHOD_LABELS } from '../types';
 import { parseISO } from 'date-fns';
-import { brl, isActiveBooking, nextReservationNumber, nights, planPriceForDate, rangesOverlap, todayISO } from '../lib/utils';
+import { brl, isActiveBooking, nextReservationNumber, nights, planPriceForDate, rangesOverlap, todayISO, uid } from '../lib/utils';
 
 interface Props {
   open: boolean;
@@ -36,6 +37,15 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
     priceTouched: false,
   });
 
+  // Busca de hóspede (autocomplete) — evita listas gigantes em <select> nativo.
+  const [clientQuery, setClientQuery] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [addingNewClient, setAddingNewClient] = useState(false);
+
+  // Adiantamento — só na criação (edição de reserva já tem "Registrar pagamento" nos detalhes).
+  const [depositAmount, setDepositAmount] = useState(0);
+  const [depositMethod, setDepositMethod] = useState<Payment['method']>('pix');
+
   useEffect(() => {
     if (!open) return;
     if (booking) {
@@ -55,6 +65,8 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
         notes: booking.notes ?? '',
         priceTouched: true,
       });
+      setClientQuery(clients.find((c) => c.id === booking.clientId)?.name ?? '');
+      setAddingNewClient(false);
     } else {
       setForm((f) => ({
         ...f,
@@ -73,8 +85,35 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
         notes: '',
         priceTouched: false,
       }));
+      setClientQuery(defaults?.clientId ? clients.find((c) => c.id === defaults.clientId)?.name ?? '' : '');
+      setAddingNewClient(false);
     }
+    setDepositAmount(0);
+    setDepositMethod('pix');
+    setPickerOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, booking, defaults]);
+
+  const matchingClients = useMemo(() => {
+    const term = clientQuery.trim().toLowerCase();
+    if (!term) return [];
+    return clients
+      .filter((c) => c.name.toLowerCase().includes(term) || c.phone?.includes(term))
+      .slice(0, 8);
+  }, [clients, clientQuery]);
+
+  const selectClient = (id: string, name: string) => {
+    setForm((f) => ({ ...f, clientId: id }));
+    setClientQuery(name);
+    setPickerOpen(false);
+    setAddingNewClient(false);
+  };
+
+  const clearClient = () => {
+    setForm((f) => ({ ...f, clientId: '' }));
+    setClientQuery('');
+    setPickerOpen(false);
+  };
 
   const isBlock = form.status === 'blocked';
   const numNights = form.checkIn && form.checkOut ? nights(form.checkIn, form.checkOut) : 0;
@@ -135,6 +174,14 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
       });
   }, [rooms, bookings, form.checkIn, form.checkOut, booking?.id]);
 
+  // Capacidade do quarto selecionado — apenas um aviso, nunca bloqueia a reserva.
+  const selectedRoom = rooms.find((r) => r.id === form.roomId);
+  const selectedCategory = categories.find((c) => c.id === selectedRoom?.categoryId);
+  const maxGuests = selectedCategory?.maxGuests;
+  const overCapacity = Boolean(maxGuests && form.adults + form.children > maxGuests);
+
+  const remainingAfterDeposit = Math.max(0, form.totalPrice - (depositAmount || 0));
+
   const submit = async () => {
     if (!form.roomId) return toast.error('Selecione um quarto.');
     if (form.checkOut <= form.checkIn) return toast.error('O check-out deve ser depois do check-in.');
@@ -142,6 +189,7 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
 
     let clientId = form.clientId;
     if (!isBlock && !clientId) {
+      if (!addingNewClient) return toast.error('Busque um hóspede já cadastrado ou clique em "Cadastrar novo hóspede".');
       if (!form.newClientName.trim()) return toast.error('Informe o nome do hóspede.');
       if (!form.newClientPhone.trim()) return toast.error('Informe o telefone do hóspede.');
       if (!form.newClientDocument.trim()) return toast.error('Informe o documento (CPF/RG) do hóspede.');
@@ -152,6 +200,11 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
         createdAt: new Date().toISOString(),
       });
     }
+
+    const initialPayments =
+      !isEdit && !isBlock && depositAmount > 0
+        ? [{ id: uid(), amount: depositAmount, method: depositMethod, date: new Date().toISOString() }]
+        : booking?.payments ?? [];
 
     await save('bookings', {
       id: booking?.id,
@@ -166,7 +219,7 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
       status: form.status,
       channel: form.channel,
       consumption: booking?.consumption ?? [],
-      payments: booking?.payments ?? [],
+      payments: initialPayments,
       notes: form.notes,
       createdAt: booking?.createdAt ?? new Date().toISOString(),
     });
@@ -221,21 +274,70 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
         </Field>
 
         {!isBlock && (
-          <Field label="Cliente" required>
-            <Select value={form.clientId} onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))}>
-              <option value="">+ Novo cliente (preencha abaixo)</option>
-              {clients
-                .slice()
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-            </Select>
-          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Hóspede" required>
+              <div className="relative">
+                <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
+                <Input
+                  value={clientQuery}
+                  onChange={(e) => {
+                    setClientQuery(e.target.value);
+                    setForm((f) => ({ ...f, clientId: '' }));
+                    setPickerOpen(true);
+                    setAddingNewClient(false);
+                  }}
+                  onFocus={() => setPickerOpen(true)}
+                  onBlur={() => setTimeout(() => setPickerOpen(false), 150)}
+                  placeholder="Busque por nome ou telefone…"
+                  className="pl-9 pr-9"
+                />
+                {(form.clientId || clientQuery) && (
+                  <button type="button" onClick={clearClient} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-300 hover:text-slate-500 cursor-pointer">
+                    <X size={15} />
+                  </button>
+                )}
+                {pickerOpen && !form.clientId && clientQuery.trim() && (
+                  <div className="absolute z-20 mt-1.5 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                    {matchingClients.length > 0 ? (
+                      matchingClients.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onMouseDown={() => selectClient(c.id, c.name)}
+                          className="flex w-full flex-col items-start rounded-lg px-3 py-2 text-left text-sm hover:bg-brand-50 cursor-pointer"
+                        >
+                          <span className="font-semibold text-slate-800">{c.name}</span>
+                          <span className="text-xs text-slate-400">{c.phone}{c.document ? ` · ${c.document}` : ''}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="px-3 py-2 text-sm text-slate-400">Nenhum hóspede encontrado.</p>
+                    )}
+                    <button
+                      type="button"
+                      onMouseDown={() => {
+                        setAddingNewClient(true);
+                        setPickerOpen(false);
+                        setForm((f) => ({ ...f, newClientName: clientQuery.trim() }));
+                      }}
+                      className="mt-1 flex w-full items-center gap-1.5 rounded-lg border-t border-slate-100 px-3 py-2 text-left text-sm font-semibold text-brand-700 hover:bg-brand-50 cursor-pointer"
+                    >
+                      <UserPlus size={14} /> Cadastrar "{clientQuery.trim()}" como novo hóspede
+                    </button>
+                  </div>
+                )}
+              </div>
+            </Field>
+            {!form.clientId && !addingNewClient && !clientQuery.trim() && (
+              <button type="button" onClick={() => setAddingNewClient(true)} className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-brand-700 hover:text-brand-800 cursor-pointer">
+                <UserPlus size={13} /> Ou cadastre um hóspede novo
+              </button>
+            )}
+          </div>
         )}
 
-        {!isBlock && !form.clientId && (
-          <>
+        {!isBlock && addingNewClient && (
+          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
             <Field label="Nome do hóspede" required>
               <Input value={form.newClientName} onChange={(e) => setForm((f) => ({ ...f, newClientName: e.target.value }))} placeholder="Nome completo" />
             </Field>
@@ -245,7 +347,20 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
             <Field label="Documento (CPF/RG)" required>
               <Input value={form.newClientDocument} onChange={(e) => setForm((f) => ({ ...f, newClientDocument: e.target.value }))} placeholder="000.000.000-00" />
             </Field>
-          </>
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setAddingNewClient(false);
+                  setClientQuery('');
+                  setForm((f) => ({ ...f, newClientName: '', newClientPhone: '', newClientDocument: '' }));
+                }}
+                className="text-xs font-semibold text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                Cancelar — voltar a buscar hóspede
+              </button>
+            </div>
+          </div>
         )}
 
         {!isBlock && (
@@ -256,6 +371,11 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
             <Field label="Crianças">
               <Input type="number" min={0} value={form.children} onChange={(e) => setForm((f) => ({ ...f, children: Number(e.target.value) }))} />
             </Field>
+            {overCapacity && (
+              <p className="flex items-start gap-1.5 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 sm:col-span-2">
+                <AlertTriangle size={14} className="mt-0.5 shrink-0" /> Este quarto comporta até {maxGuests} hóspede{maxGuests === 1 ? '' : 's'} — {form.adults + form.children} pode precisar de cama extra ou ajuste na reserva.
+              </p>
+            )}
             <Field label={`Valor total (${numNights} ${numNights === 1 ? 'noite' : 'noites'})`} hint="Calculado automaticamente — edite se quiser">
               <Input
                 type="number"
@@ -265,6 +385,18 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
                 onChange={(e) => setForm((f) => ({ ...f, totalPrice: Number(e.target.value), priceTouched: true }))}
               />
             </Field>
+            {!isEdit && (
+              <Field label="Adiantamento (opcional)" hint={depositAmount > 0 ? `Falta pagar após o adiantamento: ${brl(remainingAfterDeposit)}` : 'Já recebeu algum sinal/depósito? Registre aqui.'}>
+                <div className="flex gap-2">
+                  <Input type="number" min={0} step="0.01" value={depositAmount || ''} onChange={(e) => setDepositAmount(Number(e.target.value))} placeholder="0,00" />
+                  <Select value={depositMethod} onChange={(e) => setDepositMethod(e.target.value as Payment['method'])} className="w-32 shrink-0">
+                    {(Object.keys(PAYMENT_METHOD_LABELS) as Payment['method'][]).map((m) => (
+                      <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>
+                    ))}
+                  </Select>
+                </div>
+              </Field>
+            )}
           </>
         )}
 
