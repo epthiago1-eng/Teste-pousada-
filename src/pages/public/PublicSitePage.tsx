@@ -50,11 +50,82 @@ const stayTotal = (cat: PublicCategory, checkIn: string, checkOut: string) => {
 };
 
 /* ================================================================
-   Hero cinematográfico: zoom de "drone" conduzido pelo scroll
+   Sequência de frames (vídeo da pousada convertido em imagens),
+   pré-carregada e desenhada num <canvas> conforme o progresso do scroll.
+   ================================================================ */
+const HERO_FRAME_COUNT = 65;
+const heroFramePath = (i: number) => `/booking-scroll/frame-${String(i).padStart(3, '0')}.webp`;
+
+function useFrameSequence(frameCount: number, framePath: (i: number) => string) {
+  const imagesRef = useRef<HTMLImageElement[]>([]);
+  const [loadedCount, setLoadedCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const images: HTMLImageElement[] = [];
+    for (let i = 1; i <= frameCount; i++) {
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = framePath(i);
+      img.onload = () => !cancelled && setLoadedCount((c) => c + 1);
+      images.push(img);
+    }
+    imagesRef.current = images;
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frameCount]);
+
+  return { imagesRef, allLoaded: loadedCount >= frameCount };
+}
+
+/* ================================================================
+   Hero cinematográfico: sequência de frames (vídeo) conduzida pelo scroll
    ================================================================ */
 function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomPhoto?: string; onReserve: () => void }) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { imagesRef, allLoaded } = useFrameSequence(HERO_FRAME_COUNT, heroFramePath);
   const [p, setP] = useState(0); // progresso 0..1 dentro do trilho
+
+  const drawFrame = (progress: number) => {
+    const canvas = canvasRef.current;
+    const idx = Math.min(HERO_FRAME_COUNT - 1, Math.max(0, Math.floor(progress * HERO_FRAME_COUNT)));
+    const img = imagesRef.current[idx];
+    if (!canvas || !img || !img.complete || img.naturalWidth === 0) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cw = canvas.clientWidth;
+    const ch = canvas.clientHeight;
+    if (cw === 0 || ch === 0) return;
+    const targetW = Math.round(cw * dpr);
+    const targetH = Math.round(ch * dpr);
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const imgRatio = img.naturalWidth / img.naturalHeight;
+    const canvasRatio = cw / ch;
+    let drawW: number, drawH: number, dx: number, dy: number;
+    if (imgRatio > canvasRatio) {
+      drawH = ch;
+      drawW = ch * imgRatio;
+      dx = (cw - drawW) / 2;
+      dy = 0;
+    } else {
+      drawW = cw;
+      drawH = cw / imgRatio;
+      dx = 0;
+      dy = (ch - drawH) / 2;
+    }
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.drawImage(img, dx, dy, drawW, drawH);
+  };
 
   useEffect(() => {
     let raf = 0;
@@ -65,7 +136,9 @@ function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomP
         if (!el) return;
         const rect = el.getBoundingClientRect();
         const total = el.offsetHeight - window.innerHeight;
-        setP(Math.min(1, Math.max(0, -rect.top / Math.max(total, 1))));
+        const progress = Math.min(1, Math.max(0, -rect.top / Math.max(total, 1)));
+        setP(progress);
+        drawFrame(progress);
       });
     };
     onScroll();
@@ -76,14 +149,10 @@ function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomP
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allLoaded]);
 
-  // Foto de capa do cadastro; se vazia, usa /pousada.jpg da pasta public do site
-  const [heroBroken, setHeroBroken] = useState(false);
-  const hero = tenant.heroImageUrl?.trim() || '/pousada.jpg';
-  // Fases: 0–0.3 vista distante · 0.3–0.7 voo de aproximação (drone) · 0.7–1 "entrando" (foto do quarto)
-  // O zoom mergulha em direção ao portão/entrada (origem ~50% 68% da foto aérea)
-  const zoom = 1 + Math.pow(p, 1.15) * 1.9;
+  // Fases: 0–0.3 vista distante · 0.3–0.7 voo de aproximação · 0.7–1 "entrando" (foto do quarto)
   const fade2 = Math.min(1, Math.max(0, (p - 0.72) / 0.22)); // camada interna
   const t1 = 1 - Math.min(1, p / 0.22); // título
   const t2 = p > 0.26 && p < 0.62 ? Math.min(1, (p - 0.26) / 0.12) * (1 - Math.max(0, (p - 0.5) / 0.12)) : 0; // localização
@@ -92,21 +161,12 @@ function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomP
   return (
     <div ref={trackRef} style={{ height: '280vh' }} className="relative">
       <div className="sticky top-0 h-dvh overflow-hidden bg-slate-900">
-        {/* Camada 1: vista aérea (zoom contínuo mergulhando na entrada) */}
-        {!heroBroken ? (
-          <img
-            src={hero}
-            alt=""
-            onError={() => setHeroBroken(true)}
-            className="absolute inset-0 h-full w-full object-cover will-change-transform"
-            style={{
-              transform: `scale(${zoom}) translateY(${p * -3}%)`,
-              transformOrigin: '50% 68%',
-              filter: `brightness(${0.92 - p * 0.3}) saturate(${1 + p * 0.15})`,
-            }}
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-brand-800 via-brand-900 to-slate-900" />
+        {/* Camada 1: sequência de frames do vídeo, controlada pelo scroll */}
+        <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+        {!allLoaded && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="h-9 w-9 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+          </div>
         )}
 
         {/* Camada 2: interior (revela no final, como se entrasse) */}
