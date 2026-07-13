@@ -53,21 +53,23 @@ const stayTotal = (cat: PublicCategory, checkIn: string, checkOut: string) => {
    Sequência de frames (vídeo da pousada convertido em imagens),
    pré-carregada e desenhada num <canvas> conforme o progresso do scroll.
    ================================================================ */
-const HERO_FRAME_COUNT = 65;
+const HERO_FRAME_COUNT = 32;
 const heroFramePath = (i: number) => `/booking-scroll/frame-${String(i).padStart(3, '0')}.webp`;
 
 function useFrameSequence(frameCount: number, framePath: (i: number) => string) {
   const imagesRef = useRef<HTMLImageElement[]>([]);
-  const [loadedCount, setLoadedCount] = useState(0);
+  const [firstFrameLoaded, setFirstFrameLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const images: HTMLImageElement[] = [];
     for (let i = 1; i <= frameCount; i++) {
       const img = new Image();
+      // Prioriza os primeiros frames (visíveis logo de cara); o resto carrega em segundo plano.
+      img.fetchPriority = i <= 4 ? 'high' : 'low';
       img.decoding = 'async';
       img.src = framePath(i);
-      img.onload = () => !cancelled && setLoadedCount((c) => c + 1);
+      if (i === 1) img.onload = () => !cancelled && setFirstFrameLoaded(true);
       images.push(img);
     }
     imagesRef.current = images;
@@ -77,7 +79,7 @@ function useFrameSequence(frameCount: number, framePath: (i: number) => string) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [frameCount]);
 
-  return { imagesRef, allLoaded: loadedCount >= frameCount };
+  return { imagesRef, firstFrameLoaded };
 }
 
 /* ================================================================
@@ -86,7 +88,7 @@ function useFrameSequence(frameCount: number, framePath: (i: number) => string) 
 function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomPhoto?: string; onReserve: () => void }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { imagesRef, allLoaded } = useFrameSequence(HERO_FRAME_COUNT, heroFramePath);
+  const { imagesRef, firstFrameLoaded } = useFrameSequence(HERO_FRAME_COUNT, heroFramePath);
   const [p, setP] = useState(0); // progresso 0..1 dentro do trilho
 
   const drawFrame = (progress: number) => {
@@ -150,7 +152,7 @@ function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomP
       window.removeEventListener('resize', onScroll);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allLoaded]);
+  }, [firstFrameLoaded]);
 
   // Fases: 0–0.3 vista distante · 0.3–0.7 voo de aproximação · 0.7–1 "entrando" (foto do quarto)
   const fade2 = Math.min(1, Math.max(0, (p - 0.72) / 0.22)); // camada interna
@@ -163,8 +165,8 @@ function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomP
       <div className="sticky top-0 h-dvh overflow-hidden bg-slate-900">
         {/* Camada 1: sequência de frames do vídeo, controlada pelo scroll */}
         <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
-        {!allLoaded && (
-          <div className="absolute inset-0 flex items-center justify-center">
+        {!firstFrameLoaded && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
             <div className="h-9 w-9 animate-spin rounded-full border-2 border-white/40 border-t-white" />
           </div>
         )}
