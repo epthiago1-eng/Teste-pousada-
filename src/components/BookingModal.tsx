@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { addDays, format } from 'date-fns';
 import { toast } from 'sonner';
-import { AlertTriangle, Search, UserPlus, X } from 'lucide-react';
+import { AlertTriangle, Search, UserPlus, Wallet, X } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { Button, Field, Input, Modal, Select, Textarea } from './ui';
 import type { Booking, BookingStatus, Channel, Payment } from '../types';
 import { BOOKING_STATUS_LABELS, CHANNEL_LABELS, PAYMENT_METHOD_LABELS } from '../types';
 import { parseISO } from 'date-fns';
-import { brl, isActiveBooking, nextReservationNumber, nights, planPriceForDate, rangesOverlap, todayISO, uid } from '../lib/utils';
+import { brl, cn, isActiveBooking, nextReservationNumber, nights, planPriceForDate, rangesOverlap, todayISO, uid } from '../lib/utils';
 
 interface Props {
   open: boolean;
@@ -227,8 +227,14 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
     onClose();
   };
 
+  const editingClientName = isEdit ? clients.find((c) => c.id === booking?.clientId)?.name : undefined;
+
   return (
-    <Modal open={open} onClose={onClose} title={isEdit ? `Editar reserva ${booking?.reservationNumber ?? ''}` : 'Nova reserva'} wide
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={isEdit ? `${editingClientName ? `${editingClientName} · ` : ''}Editar reserva ${booking?.reservationNumber ?? ''}` : 'Nova reserva'}
+      wide
       footer={
         <>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
@@ -289,7 +295,7 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
                   onFocus={() => setPickerOpen(true)}
                   onBlur={() => setTimeout(() => setPickerOpen(false), 150)}
                   placeholder="Busque por nome ou telefone…"
-                  className="pl-9 pr-9"
+                  className={cn('pl-9 pr-9', form.clientId && 'border-brand-300 bg-brand-50/40 font-semibold text-brand-900')}
                 />
                 {(form.clientId || clientQuery) && (
                   <button type="button" onClick={clearClient} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-300 hover:text-slate-500 cursor-pointer">
@@ -376,26 +382,45 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
                 <AlertTriangle size={14} className="mt-0.5 shrink-0" /> Este quarto comporta até {maxGuests} hóspede{maxGuests === 1 ? '' : 's'} — {form.adults + form.children} pode precisar de cama extra ou ajuste na reserva.
               </p>
             )}
-            <Field label={`Valor total (${numNights} ${numNights === 1 ? 'noite' : 'noites'})`} hint="Calculado automaticamente — edite se quiser">
-              <Input
-                type="number"
-                min={0}
-                step="0.01"
-                value={form.totalPrice}
-                onChange={(e) => setForm((f) => ({ ...f, totalPrice: Number(e.target.value), priceTouched: true }))}
-              />
-            </Field>
-            {!isEdit && (
-              <Field label="Adiantamento (opcional)" hint={depositAmount > 0 ? `Falta pagar após o adiantamento: ${brl(remainingAfterDeposit)}` : 'Já recebeu algum sinal/depósito? Registre aqui.'}>
-                <div className="flex gap-2">
-                  <Input type="number" min={0} step="0.01" value={depositAmount || ''} onChange={(e) => setDepositAmount(Number(e.target.value))} placeholder="0,00" />
-                  <Select value={depositMethod} onChange={(e) => setDepositMethod(e.target.value as Payment['method'])} className="w-32 shrink-0">
-                    {(Object.keys(PAYMENT_METHOD_LABELS) as Payment['method'][]).map((m) => (
-                      <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>
-                    ))}
-                  </Select>
-                </div>
+            {isEdit ? (
+              <Field label={`Valor total (${numNights} ${numNights === 1 ? 'noite' : 'noites'})`} hint="Calculado automaticamente — edite se quiser">
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={form.totalPrice}
+                  onChange={(e) => setForm((f) => ({ ...f, totalPrice: Number(e.target.value), priceTouched: true }))}
+                />
               </Field>
+            ) : (
+              <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:col-span-2">
+                <h4 className="flex items-center gap-1.5 text-sm font-bold text-slate-700"><Wallet size={15} /> Resumo financeiro</h4>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label={`Valor total (${numNights} ${numNights === 1 ? 'noite' : 'noites'})`} hint="Calculado automaticamente — edite se quiser">
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={form.totalPrice}
+                      onChange={(e) => setForm((f) => ({ ...f, totalPrice: Number(e.target.value), priceTouched: true }))}
+                    />
+                  </Field>
+                  <Field label="Adiantamento (opcional)" hint="Já recebeu algum sinal/depósito? Registre aqui.">
+                    <div className="flex gap-2">
+                      <Input type="number" min={0} step="0.01" value={depositAmount || ''} onChange={(e) => setDepositAmount(Number(e.target.value))} placeholder="0,00" />
+                      <Select value={depositMethod} onChange={(e) => setDepositMethod(e.target.value as Payment['method'])} className="w-32 shrink-0">
+                        {(Object.keys(PAYMENT_METHOD_LABELS) as Payment['method'][]).map((m) => (
+                          <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>
+                        ))}
+                      </Select>
+                    </div>
+                  </Field>
+                </div>
+                <div className="flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-sm">
+                  <span className="text-sm font-semibold text-slate-500">Saldo {depositAmount > 0 ? 'após o adiantamento' : 'a pagar'}</span>
+                  <span className={cn('text-xl font-extrabold', remainingAfterDeposit > 0 ? 'text-red-600' : 'text-emerald-700')}>{brl(remainingAfterDeposit)}</span>
+                </div>
+              </div>
             )}
           </>
         )}

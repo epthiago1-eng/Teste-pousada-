@@ -137,7 +137,7 @@ export default function BookingDetailsModal({
 
   return (
     <>
-      <Modal open onClose={onClose} title={isBlock ? 'Bloqueio de quarto' : `Reserva ${booking.reservationNumber}`} wide
+      <Modal open onClose={onClose} title={isBlock ? 'Bloqueio de quarto' : `${client?.name ?? 'Cliente removido'} · Reserva ${booking.reservationNumber}`} wide
         footer={
           <>
             {canDelete && (
