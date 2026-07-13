@@ -1,6 +1,5 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getStorage } from 'firebase/storage';
 import {
   initializeFirestore,
   persistentLocalCache,
@@ -22,7 +21,6 @@ export const isFirebaseConfigured = Boolean(
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const storage = getStorage(app);
 
 // Cache local persistente (IndexedDB): o app funciona offline e o Firestore
 // sincroniza automaticamente quando a conexão volta — inclusive entre abas.

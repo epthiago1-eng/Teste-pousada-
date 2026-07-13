@@ -1,9 +1,8 @@
 import { type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes, useEffect, useRef, useState } from 'react';
 import { X, Inbox, Upload, Loader2, Image as ImageIcon } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast } from 'sonner';
-import { storage } from '../lib/firebase';
+import { supabase, PHOTOS_BUCKET } from '../lib/supabase';
 import { cn } from '../lib/utils';
 
 /* ---------- Botão ---------- */
@@ -67,7 +66,7 @@ export function Field({ label, children, required, hint }: { label: string; chil
   );
 }
 
-/* ---------- Upload de imagem para o Firebase Storage (celular/computador) ---------- */
+/* ---------- Upload de imagem para o Supabase Storage (celular/computador) ---------- */
 const MAX_UPLOAD_MB = 8;
 
 export function useImageUpload(tenantId: string | undefined, folder: string) {
@@ -90,9 +89,13 @@ export function useImageUpload(tenantId: string | undefined, folder: string) {
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, '_').slice(-60);
       const path = `tenants/${tenantId}/${folder}/${Date.now()}-${safeName}`;
-      const fileRefStorage = ref(storage, path);
-      await uploadBytes(fileRefStorage, file);
-      return await getDownloadURL(fileRefStorage);
+      const { error } = await supabase.storage.from(PHOTOS_BUCKET).upload(path, file, {
+        cacheControl: '31536000',
+        contentType: file.type,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(path);
+      return data.publicUrl;
     } catch {
       toast.error('Não foi possível enviar a foto. Verifique sua conexão e tente novamente.');
       return null;
