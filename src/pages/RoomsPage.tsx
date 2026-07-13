@@ -217,13 +217,14 @@ function RoomModal({ room, categories, tenantId, onClose, onSave, onDelete }: {
           <p className="text-xs text-slate-400">
             Adicione até {MAX_ROOM_PHOTOS} fotos — envie direto do celular ou cole um link. A <strong>primeira é a principal</strong> — é ela que aparece em destaque na página de reservas.
           </p>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="space-y-2">
             <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://…/foto-do-quarto.jpg" onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addPhoto())} />
-            <div className="flex gap-2">
-              <Button variant="secondary" onClick={addPhoto} disabled={photos.length >= MAX_ROOM_PHOTOS}><Plus size={15} /> Adicionar link</Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={addPhoto} disabled={photos.length >= MAX_ROOM_PHOTOS} className="w-full justify-center sm:w-auto"><Plus size={15} /> Adicionar link</Button>
               <UploadPhotoButton
                 tenantId={tenantId}
                 folder="rooms"
+                className="w-full justify-center sm:w-auto"
                 onUploaded={(url) => {
                   if (photos.length >= MAX_ROOM_PHOTOS) return toast.error(`Máximo de ${MAX_ROOM_PHOTOS} fotos por quarto.`);
                   setPhotos((prev) => [...prev, url]);
