@@ -11,7 +11,7 @@ import {
 import { db } from '../../lib/firebase';
 import { usePublicTenant, type PublicCategory } from './usePublicTenant';
 import type { PublicAvailability, Tenant } from '../../types';
-import { brl, cn, nights, planPriceForDate, rangesOverlap, todayISO } from '../../lib/utils';
+import { brl, cn, formatPhoneBR, nights, planPriceForDate, rangesOverlap, todayISO } from '../../lib/utils';
 
 /* ================================================================
    Helpers de preço e disponibilidade (dados públicos, sem login)
@@ -342,7 +342,7 @@ export default function PublicSitePage() {
   const submit = async () => {
     if (!tenant) return;
     if (guest.name.trim().length < 2) return toast.error('Informe seu nome completo.');
-    if (guest.phone.trim().length < 8) return toast.error('Informe um telefone válido — é por ele que confirmamos sua reserva.');
+    if (guest.phone.replace(/\D/g, '').length < 10) return toast.error('Informe um telefone válido — é por ele que confirmamos sua reserva.');
     if (!searchValid) return toast.error('Confira as datas escolhidas.');
     setSending(true);
     try {
@@ -645,7 +645,7 @@ export default function PublicSitePage() {
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-[11px] font-bold uppercase text-slate-400">Telefone / WhatsApp * <span className="normal-case text-slate-300">(é por ele que confirmamos)</span></span>
-                    <input value={guest.phone} onChange={(e) => setGuest((g) => ({ ...g, phone: e.target.value }))} placeholder="(00) 90000-0000" inputMode="tel" className="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" />
+                    <input value={guest.phone} onChange={(e) => setGuest((g) => ({ ...g, phone: formatPhoneBR(e.target.value) }))} placeholder="(00) 90000-0000" inputMode="tel" className="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" />
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-[11px] font-bold uppercase text-slate-400">E-mail (opcional)</span>

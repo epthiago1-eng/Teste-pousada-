@@ -4,7 +4,7 @@ import { Plus, Trash2, UsersRound, Wallet } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { Button, Card, ConfirmDialog, EmptyState, Field, Input, Modal, PageHeader, Textarea } from '../components/ui';
 import type { Staff } from '../types';
-import { brl, fmtDate, todayISO } from '../lib/utils';
+import { brl, fmtDate, formatPhoneBR, todayISO } from '../lib/utils';
 
 export default function StaffPage() {
   const { staff, save, remove } = useData();
@@ -116,7 +116,7 @@ function StaffModal({ member, onClose, onSave }: {
         <Field label="Nome" required><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Função" required><Input value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} placeholder="Camareira, recepção…" /></Field>
-          <Field label="Telefone"><Input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
+          <Field label="Telefone"><Input value={f.phone} onChange={(e) => setF({ ...f, phone: formatPhoneBR(e.target.value) })} inputMode="tel" /></Field>
         </div>
         <Field label="Salário mensal"><Input type="number" min={0} step="0.01" value={f.salary || ''} onChange={(e) => setF({ ...f, salary: Number(e.target.value) })} placeholder="0,00" /></Field>
         <Field label="Observações"><Textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>

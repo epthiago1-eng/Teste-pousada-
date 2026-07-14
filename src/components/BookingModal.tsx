@@ -7,7 +7,7 @@ import { Button, Field, Input, Modal, Select, Textarea } from './ui';
 import type { Booking, BookingStatus, Channel, Payment } from '../types';
 import { BOOKING_STATUS_LABELS, CHANNEL_LABELS, PAYMENT_METHOD_LABELS } from '../types';
 import { parseISO } from 'date-fns';
-import { brl, cn, isActiveBooking, nextReservationNumber, nights, planPriceForDate, rangesOverlap, todayISO, uid } from '../lib/utils';
+import { brl, cn, formatCPF, formatPhoneBR, isActiveBooking, nextReservationNumber, nights, planPriceForDate, rangesOverlap, todayISO, uid } from '../lib/utils';
 
 interface Props {
   open: boolean;
@@ -348,10 +348,10 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
               <Input value={form.newClientName} onChange={(e) => setForm((f) => ({ ...f, newClientName: e.target.value }))} placeholder="Nome completo" />
             </Field>
             <Field label="Telefone do hóspede" required>
-              <Input value={form.newClientPhone} onChange={(e) => setForm((f) => ({ ...f, newClientPhone: e.target.value }))} placeholder="(00) 90000-0000" />
+              <Input value={form.newClientPhone} onChange={(e) => setForm((f) => ({ ...f, newClientPhone: formatPhoneBR(e.target.value) }))} placeholder="(00) 90000-0000" inputMode="tel" />
             </Field>
             <Field label="Documento (CPF/RG)" required>
-              <Input value={form.newClientDocument} onChange={(e) => setForm((f) => ({ ...f, newClientDocument: e.target.value }))} placeholder="000.000.000-00" />
+              <Input value={form.newClientDocument} onChange={(e) => setForm((f) => ({ ...f, newClientDocument: formatCPF(e.target.value) }))} placeholder="000.000.000-00" inputMode="numeric" />
             </Field>
             <div className="flex items-end">
               <button

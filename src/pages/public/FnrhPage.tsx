@@ -6,6 +6,7 @@ import { CheckCircle2, FileText, Loader2, Send } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { usePublicTenant } from './usePublicTenant';
 import { Button, Field, Input, Select } from '../../components/ui';
+import { formatCPF, formatPhoneBR } from '../../lib/utils';
 
 export default function FnrhPage() {
   const { slug } = useParams();
@@ -72,11 +73,17 @@ export default function FnrhPage() {
                   <option>CPF</option><option>RG</option><option>Passaporte</option><option>CNH</option>
                 </Select>
               </Field>
-              <Field label="Número do documento" required><Input value={f.document} onChange={set('document')} /></Field>
+              <Field label="Número do documento" required>
+                <Input
+                  value={f.document}
+                  onChange={(e) => setF({ ...f, document: f.documentType === 'CPF' ? formatCPF(e.target.value) : e.target.value })}
+                  inputMode={f.documentType === 'CPF' ? 'numeric' : 'text'}
+                />
+              </Field>
               <Field label="Nascimento"><Input type="date" value={f.birthDate} onChange={set('birthDate')} /></Field>
               <Field label="Nacionalidade"><Input value={f.nationality} onChange={set('nationality')} /></Field>
               <Field label="Profissão"><Input value={f.profession} onChange={set('profession')} /></Field>
-              <Field label="Telefone"><Input value={f.phone} onChange={set('phone')} /></Field>
+              <Field label="Telefone"><Input value={f.phone} onChange={(e) => setF({ ...f, phone: formatPhoneBR(e.target.value) })} inputMode="tel" /></Field>
               <div className="sm:col-span-2"><Field label="E-mail"><Input type="email" value={f.email} onChange={set('email')} /></Field></div>
               <div className="sm:col-span-2"><Field label="Endereço"><Input value={f.address} onChange={set('address')} /></Field></div>
               <Field label="Cidade"><Input value={f.city} onChange={set('city')} /></Field>

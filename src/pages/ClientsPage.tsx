@@ -4,7 +4,7 @@ import { Phone, Plus, Search, Trash2, UserRound, Users } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, Field, Input, Modal, PageHeader, Textarea } from '../components/ui';
 import type { Client } from '../types';
-import { fmtDate } from '../lib/utils';
+import { fmtDate, formatCPF, formatPhoneBR } from '../lib/utils';
 
 export default function ClientsPage() {
   const { clients, bookings, save, remove } = useData();
@@ -114,9 +114,9 @@ function ClientModal({ client, onClose, onSave, onDelete }: {
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2"><Field label="Nome completo" required><Input value={f.name} onChange={set('name')} /></Field></div>
-        <Field label="Telefone / WhatsApp" required><Input value={f.phone} onChange={set('phone')} placeholder="(00) 90000-0000" /></Field>
+        <Field label="Telefone / WhatsApp" required><Input value={f.phone} onChange={(e) => setF({ ...f, phone: formatPhoneBR(e.target.value) })} placeholder="(00) 90000-0000" inputMode="tel" /></Field>
         <Field label="E-mail"><Input type="email" value={f.email} onChange={set('email')} /></Field>
-        <Field label="CPF / documento" required><Input value={f.document} onChange={set('document')} /></Field>
+        <Field label="CPF / documento" required><Input value={f.document} onChange={(e) => setF({ ...f, document: formatCPF(e.target.value) })} placeholder="000.000.000-00" inputMode="numeric" /></Field>
         <Field label="Data de nascimento"><Input type="date" value={f.birthDate} onChange={set('birthDate')} /></Field>
         <Field label="Nacionalidade"><Input value={f.nationality} onChange={set('nationality')} /></Field>
         <Field label="Cidade"><Input value={f.city} onChange={set('city')} /></Field>
