@@ -14,8 +14,17 @@ import { useData } from '../context/DataContext';
 import { Button, EmptyState, PageHeader } from '../components/ui';
 import BookingModal from '../components/BookingModal';
 import BookingDetailsModal from '../components/BookingDetailsModal';
-import type { Booking, Room } from '../types';
+import type { Booking, Room, RoomStatus } from '../types';
+import { ROOM_STATUS_LABELS } from '../types';
 import { bookingBalance, bookingPaid, cn, isActiveBooking, rangesOverlap } from '../lib/utils';
+
+const ROOM_STATUS_DOT: Record<RoomStatus, string> = {
+  clean: 'bg-emerald-500',
+  dirty: 'bg-red-500',
+  cleaning: 'bg-amber-400',
+  inspected: 'bg-sky-500',
+  maintenance: 'bg-slate-500',
+};
 
 const CELL = 60; // largura da célula (px)
 const HALF = CELL / 2; // reservas começam/terminam ao meio-dia
@@ -85,6 +94,14 @@ export default function CalendarPage() {
   const [editing, setEditing] = useState<Booking | null>(null);
   const [now, setNow] = useState(new Date());
   const [legendOpen, setLegendOpen] = useState(false);
+  const [statusMenuRoomId, setStatusMenuRoomId] = useState<string | null>(null);
+
+  const setRoomStatus = async (room: Room, status: RoomStatus) => {
+    setStatusMenuRoomId(null);
+    if (status === room.status) return;
+    await update('rooms', room.id, { status });
+    toast.success(`Quarto ${room.number}: ${ROOM_STATUS_LABELS[status]}`);
+  };
 
   // Seleção por arrasto (criar reserva)
   const [sel, setSel] = useState<{ roomId: string; anchor: Date; hover: Date } | null>(null);
@@ -267,7 +284,7 @@ export default function CalendarPage() {
                     )}
                   >
                     {isToday(d) && (
-                      <span className="absolute bottom-0 top-0 z-40 w-[2px] rounded-full bg-brand-600" style={{ left: `${nowLinePct}%` }} />
+                      <span className="pointer-events-none absolute -bottom-px -top-px z-40 w-[2px] bg-brand-600" style={{ left: `${nowLinePct}%` }} />
                     )}
                     <div className="flex h-full flex-col items-center justify-center gap-0.5">
                       <span className={cn('text-[9px] font-bold uppercase tracking-widest leading-none', isToday(d) ? 'text-brand-700' : 'text-slate-400')}>
@@ -307,7 +324,7 @@ export default function CalendarPage() {
                                 {free}
                               </span>
                             )}
-                            {isToday(d) && <span className="absolute bottom-0 top-0 z-40 w-[2px] rounded-full bg-brand-600/50" style={{ left: `${nowLinePct}%` }} />}
+                            {isToday(d) && <span className="pointer-events-none absolute -bottom-px -top-px z-40 w-[2px] bg-brand-600" style={{ left: `${nowLinePct}%` }} />}
                           </td>
                         );
                       })}
@@ -318,10 +335,40 @@ export default function CalendarPage() {
                       const roomBars = visibleBookings.filter((b) => b.roomId === room.id);
                       return (
                         <tr key={room.id} className="group h-[58px] transition-colors hover:bg-slate-50/50">
-                          <td className="sticky left-0 z-50 overflow-hidden border-b border-r border-slate-100 bg-white px-1.5 shadow-[2px_0_8px_-4px_rgba(0,0,0,0.05)] transition group-hover:bg-slate-50 sm:px-2.5" title={`Quarto ${room.number}`}>
-                            <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-                              <RoomIcon room={room} occupied={occupiedToday(room.id)} />
-                              <span className="min-w-0 truncate text-xs font-bold tracking-tight text-slate-700 transition group-hover:text-brand-700">{room.number}</span>
+                          <td className="sticky left-0 z-50 border-b border-r border-slate-100 bg-white px-1.5 shadow-[2px_0_8px_-4px_rgba(0,0,0,0.05)] transition group-hover:bg-slate-50 sm:px-2.5" title={`Quarto ${room.number} — clique para mudar o status`}>
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setStatusMenuRoomId((id) => (id === room.id ? null : room.id)); }}
+                                className="flex min-w-0 items-center gap-1.5 rounded-lg py-0.5 pr-1 text-left transition hover:bg-slate-100 sm:gap-2 cursor-pointer"
+                              >
+                                <RoomIcon room={room} occupied={occupiedToday(room.id)} />
+                                <span className="min-w-0 truncate text-xs font-bold tracking-tight text-slate-700 transition group-hover:text-brand-700">{room.number}</span>
+                              </button>
+
+                              {statusMenuRoomId === room.id && (
+                                <>
+                                  <div className="fixed inset-0 z-[75]" onClick={() => setStatusMenuRoomId(null)} />
+                                  <div className="absolute left-0 top-full z-[80] mt-1 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                                    <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">Quarto {room.number}</p>
+                                    {(Object.keys(ROOM_STATUS_LABELS) as RoomStatus[]).map((s) => (
+                                      <button
+                                        key={s}
+                                        type="button"
+                                        onClick={() => setRoomStatus(room, s)}
+                                        className={cn(
+                                          'flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-semibold hover:bg-slate-50 cursor-pointer',
+                                          s === room.status ? 'text-brand-700' : 'text-slate-600'
+                                        )}
+                                      >
+                                        <span className={cn('h-2 w-2 shrink-0 rounded-full', ROOM_STATUS_DOT[s])} />
+                                        {ROOM_STATUS_LABELS[s]}
+                                        {s === room.status && <Check size={12} className="ml-auto shrink-0 text-brand-600" />}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
                             </div>
                           </td>
 
@@ -343,7 +390,7 @@ export default function CalendarPage() {
                                 )}
                                 {/* Linha do agora */}
                                 {isToday(day) && (
-                                  <span className="pointer-events-none absolute bottom-0 top-0 z-40 w-[2px] rounded-full bg-brand-600/40" style={{ left: `${nowLinePct}%` }} />
+                                  <span className="pointer-events-none absolute -bottom-px -top-px z-40 w-[2px] bg-brand-600" style={{ left: `${nowLinePct}%` }} />
                                 )}
                                 {/* Seleção */}
                                 {inSelection(room.id, day) && (
