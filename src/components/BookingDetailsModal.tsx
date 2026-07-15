@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { BedDouble, CalendarDays, LogIn, LogOut, MessageCircle, Pencil, Plus, Send, ShoppingBasket, Trash2, Wallet, XCircle } from 'lucide-react';
+import { AlertTriangle, BedDouble, CalendarDays, CheckCircle2, LogIn, LogOut, MessageCircle, Pencil, Plus, Send, ShoppingBasket, Trash2, Wallet, XCircle } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { Badge, Button, ConfirmDialog, Field, Input, Modal, Select } from './ui';
 import type { Booking, Payment } from '../types';
 import { BOOKING_STATUS_LABELS, CHANNEL_LABELS, DEFAULT_MESSAGE_TEMPLATES, PAYMENT_METHOD_LABELS } from '../types';
 import { bookingBalance, bookingPaid, bookingTotal, brl, fillTemplate, fmtDate, nights, todayISO, uid, waPhone } from '../lib/utils';
+import { generateCheckoutReceipt } from '../lib/receipt';
 
 const statusColor: Record<Booking['status'], 'yellow' | 'blue' | 'green' | 'gray' | 'red' | 'purple' | 'orange'> = {
   'pre-booking': 'yellow',
@@ -33,6 +34,7 @@ export default function BookingDetailsModal({
   const booking = bookings.find((b) => b.id === bookingId) ?? null;
   const [payOpen, setPayOpen] = useState(false);
   const [consOpen, setConsOpen] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pay, setPay] = useState({ amount: 0, method: 'pix' as Payment['method'] });
@@ -72,6 +74,12 @@ export default function BookingDetailsModal({
       }
     }
     toast.success(`Status atualizado: ${BOOKING_STATUS_LABELS[status]}`);
+  };
+
+  const confirmCheckout = () => {
+    setCheckoutOpen(false);
+    generateCheckoutReceipt({ booking, client, room, category, tenant });
+    setStatus('checked-out');
   };
 
   const addPayment = async () => {
@@ -153,7 +161,7 @@ export default function BookingDetailsModal({
               <Button onClick={() => setStatus('confirmed')}>Confirmar reserva</Button>
             )}
             {booking.status === 'checked-in' && (
-              <Button onClick={() => setStatus('checked-out')}><LogOut size={15} /> Fazer check-out</Button>
+              <Button onClick={() => setCheckoutOpen(true)}><LogOut size={15} /> Fazer check-out</Button>
             )}
           </>
         }
@@ -348,6 +356,72 @@ export default function BookingDetailsModal({
               <Input type="number" min={0} step="0.01" value={cons.unitPrice || ''} onChange={(e) => setCons((c) => ({ ...c, unitPrice: Number(e.target.value) }))} />
             </Field>
           </div>
+        </div>
+      </Modal>
+
+      {/* Confirmar check-out */}
+      <Modal
+        open={checkoutOpen}
+        onClose={() => setCheckoutOpen(false)}
+        title={balance > 0 ? 'Pendência antes do check-out' : 'Confirmar check-out'}
+        footer={
+          balance > 0 ? (
+            <>
+              <Button variant="outline" onClick={() => setCheckoutOpen(false)}>Voltar</Button>
+              <Button variant="secondary" onClick={() => setPayOpen(true)}><Wallet size={15} /> Registrar pagamento</Button>
+              <Button variant="ghost" className="text-red-600" onClick={confirmCheckout}>
+                Check-out mesmo assim
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => setCheckoutOpen(false)}>Cancelar</Button>
+              <Button onClick={confirmCheckout}><LogOut size={15} /> Confirmar check-out</Button>
+            </>
+          )
+        }
+      >
+        <div className="space-y-4">
+          {balance > 0 ? (
+            <div className="flex items-start gap-3 rounded-xl bg-red-50 p-4">
+              <AlertTriangle size={20} className="mt-0.5 shrink-0 text-red-500" />
+              <div>
+                <p className="text-sm font-bold text-red-700">Essa reserva ainda tem saldo pendente</p>
+                <p className="mt-1 text-sm text-red-600">
+                  Falta <strong>{brl(balance)}</strong> para quitar. Registre o pagamento agora, ou confirme o check-out mesmo assim se for cobrar depois.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start gap-3 rounded-xl bg-emerald-50 p-4">
+              <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-emerald-500" />
+              <div>
+                <p className="text-sm font-bold text-emerald-700">Tudo certo pra finalizar!</p>
+                <p className="mt-1 text-sm text-emerald-600">A reserva está paga e sem pendências. Confira o resumo abaixo e confirme.</p>
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-xl border border-slate-200 p-4 text-sm">
+            <p className="font-bold text-slate-800">{client?.name ?? 'Cliente removido'}</p>
+            <p className="mt-1 text-xs text-slate-500">Quarto {room?.number ?? '?'} · {category?.name}</p>
+            <p className="text-xs text-slate-500">{fmtDate(booking.checkIn)} → {fmtDate(booking.checkOut)} ({nights(booking.checkIn, booking.checkOut)} noites)</p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 p-4 text-sm">
+            <div className="flex justify-between text-slate-600"><span>Hospedagem</span><span>{brl(booking.totalPrice)}</span></div>
+            {(booking.consumption ?? []).map((c) => (
+              <div key={c.id} className="flex justify-between text-xs text-slate-500">
+                <span>{c.quantity}× {c.description}</span><span>{brl(c.quantity * c.unitPrice)}</span>
+              </div>
+            ))}
+            <div className="mt-1 flex justify-between text-slate-600"><span>Pago</span><span className="text-emerald-700">− {brl(paid)}</span></div>
+            <div className="mt-2 flex justify-between border-t border-slate-100 pt-2 text-base font-extrabold text-slate-900">
+              <span>Saldo</span><span className={balance > 0 ? 'text-red-600' : 'text-emerald-700'}>{brl(balance)}</span>
+            </div>
+          </div>
+
+          <p className="text-center text-xs text-slate-400">Ao confirmar, um recibo em PDF desse resumo é baixado automaticamente.</p>
         </div>
       </Modal>
 

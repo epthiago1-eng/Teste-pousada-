@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   addDays, differenceInCalendarDays, format, isBefore, isSameDay, isToday, isWeekend,
@@ -94,10 +95,18 @@ export default function CalendarPage() {
   const [editing, setEditing] = useState<Booking | null>(null);
   const [now, setNow] = useState(new Date());
   const [legendOpen, setLegendOpen] = useState(false);
-  const [statusMenuRoomId, setStatusMenuRoomId] = useState<string | null>(null);
+  // Menu de status do quarto — renderizado via portal (fora da tabela) para não
+  // ficar preso atrás de outras linhas/cabeçalhos "sticky" com z-index próprio.
+  const [statusMenu, setStatusMenu] = useState<{ roomId: string; top: number; left: number } | null>(null);
+
+  const openStatusMenu = (room: Room, target: HTMLElement) => {
+    if (statusMenu?.roomId === room.id) return setStatusMenu(null);
+    const rect = target.getBoundingClientRect();
+    setStatusMenu({ roomId: room.id, top: rect.bottom + 4, left: rect.left });
+  };
 
   const setRoomStatus = async (room: Room, status: RoomStatus) => {
-    setStatusMenuRoomId(null);
+    setStatusMenu(null);
     if (status === room.status) return;
     await update('rooms', room.id, { status });
     toast.success(`Quarto ${room.number}: ${ROOM_STATUS_LABELS[status]}`);
@@ -256,7 +265,11 @@ export default function CalendarPage() {
       {rooms.length === 0 ? (
         <EmptyState icon={BedDouble} title="Nenhum quarto cadastrado" subtitle="Cadastre seus quartos para visualizar o calendário de ocupação." />
       ) : (
-        <div className="overflow-auto rounded-2xl border border-slate-200 bg-white shadow-sm" style={{ maxHeight: 'calc(100dvh - 230px)' }}>
+        <div
+          className="overflow-auto rounded-2xl border border-slate-200 bg-white shadow-sm"
+          style={{ maxHeight: 'calc(100dvh - 230px)' }}
+          onScroll={() => statusMenu && setStatusMenu(null)}
+        >
           <table className="min-w-max table-fixed border-separate border-spacing-0">
             <colgroup>
               <col className="w-[66px] sm:w-[128px]" />
@@ -336,40 +349,14 @@ export default function CalendarPage() {
                       return (
                         <tr key={room.id} className="group h-[58px] transition-colors hover:bg-slate-50/50">
                           <td className="sticky left-0 z-50 border-b border-r border-slate-100 bg-white px-1.5 shadow-[2px_0_8px_-4px_rgba(0,0,0,0.05)] transition group-hover:bg-slate-50 sm:px-2.5" title={`Quarto ${room.number} — clique para mudar o status`}>
-                            <div className="relative">
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); setStatusMenuRoomId((id) => (id === room.id ? null : room.id)); }}
-                                className="flex min-w-0 items-center gap-1.5 rounded-lg py-0.5 pr-1 text-left transition hover:bg-slate-100 sm:gap-2 cursor-pointer"
-                              >
-                                <RoomIcon room={room} occupied={occupiedToday(room.id)} />
-                                <span className="min-w-0 truncate text-xs font-bold tracking-tight text-slate-700 transition group-hover:text-brand-700">{room.number}</span>
-                              </button>
-
-                              {statusMenuRoomId === room.id && (
-                                <>
-                                  <div className="fixed inset-0 z-[75]" onClick={() => setStatusMenuRoomId(null)} />
-                                  <div className="absolute left-0 top-full z-[80] mt-1 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
-                                    <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">Quarto {room.number}</p>
-                                    {(Object.keys(ROOM_STATUS_LABELS) as RoomStatus[]).map((s) => (
-                                      <button
-                                        key={s}
-                                        type="button"
-                                        onClick={() => setRoomStatus(room, s)}
-                                        className={cn(
-                                          'flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-semibold hover:bg-slate-50 cursor-pointer',
-                                          s === room.status ? 'text-brand-700' : 'text-slate-600'
-                                        )}
-                                      >
-                                        <span className={cn('h-2 w-2 shrink-0 rounded-full', ROOM_STATUS_DOT[s])} />
-                                        {ROOM_STATUS_LABELS[s]}
-                                        {s === room.status && <Check size={12} className="ml-auto shrink-0 text-brand-600" />}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </>
-                              )}
-                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); openStatusMenu(room, e.currentTarget); }}
+                              className="flex min-w-0 items-center gap-1.5 rounded-lg py-0.5 pr-1 text-left transition hover:bg-slate-100 sm:gap-2 cursor-pointer"
+                            >
+                              <RoomIcon room={room} occupied={occupiedToday(room.id)} />
+                              <span className="min-w-0 truncate text-xs font-bold tracking-tight text-slate-700 transition group-hover:text-brand-700">{room.number}</span>
+                            </button>
                           </td>
 
                           {days.map((day, index) => {
@@ -524,6 +511,40 @@ export default function CalendarPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {statusMenu && createPortal(
+        (() => {
+          const room = rooms.find((r) => r.id === statusMenu.roomId);
+          if (!room) return null;
+          return (
+            <>
+              <div className="fixed inset-0 z-[200]" onClick={() => setStatusMenu(null)} />
+              <div
+                className="fixed z-[210] w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
+                style={{ top: statusMenu.top, left: statusMenu.left }}
+              >
+                <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">Quarto {room.number}</p>
+                {(Object.keys(ROOM_STATUS_LABELS) as RoomStatus[]).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setRoomStatus(room, s)}
+                    className={cn(
+                      'flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-semibold hover:bg-slate-50 cursor-pointer',
+                      s === room.status ? 'text-brand-700' : 'text-slate-600'
+                    )}
+                  >
+                    <span className={cn('h-2 w-2 shrink-0 rounded-full', ROOM_STATUS_DOT[s])} />
+                    {ROOM_STATUS_LABELS[s]}
+                    {s === room.status && <Check size={12} className="ml-auto shrink-0 text-brand-600" />}
+                  </button>
+                ))}
+              </div>
+            </>
+          );
+        })(),
+        document.body
       )}
 
       <BookingModal

@@ -20,7 +20,7 @@ export function Button({
     ghost: 'text-slate-600 hover:bg-slate-100',
     danger: 'bg-red-600 text-white hover:bg-red-700 shadow-sm',
   };
-  const sizes = { sm: 'h-8 px-3 text-xs', md: 'h-10 px-4 text-sm', lg: 'h-12 px-6 text-base' };
+  const sizes = { sm: 'h-8 px-3 text-xs', md: 'h-10 px-5 text-sm', lg: 'h-12 px-6 text-base' };
   return (
     <button
       className={cn(
@@ -233,18 +233,22 @@ export function Modal({
       <div
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'flex max-h-[92dvh] w-full flex-col rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl',
+          'flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl',
           wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'
         )}
       >
-        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-6 py-4">
           <h3 className="min-w-0 truncate text-base font-bold text-slate-800">{title}</h3>
           <button onClick={onClose} className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer">
             <X size={18} />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="flex flex-wrap justify-end gap-2.5 border-t border-slate-100 px-5 py-4 safe-bottom">{footer}</div>}
+        <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        {footer && (
+          <div className="flex flex-wrap justify-end gap-2.5 border-t border-slate-100 bg-slate-50/70 px-6 py-4 safe-bottom">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
