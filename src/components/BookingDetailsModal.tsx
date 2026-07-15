@@ -303,63 +303,9 @@ export default function BookingDetailsModal({
         </div>
       </Modal>
 
-      {/* Registrar pagamento */}
-      <Modal open={payOpen} onClose={() => setPayOpen(false)} title="Registrar pagamento"
-        footer={<><Button variant="outline" onClick={() => setPayOpen(false)}>Cancelar</Button><Button onClick={addPayment}>Salvar</Button></>}>
-        <div className="space-y-4">
-          <Field label="Valor" required>
-            <Input type="number" min={0} step="0.01" value={pay.amount || ''} onChange={(e) => setPay((p) => ({ ...p, amount: Number(e.target.value) }))} placeholder="0,00" />
-          </Field>
-          <Field label="Forma de pagamento">
-            <Select value={pay.method} onChange={(e) => setPay((p) => ({ ...p, method: e.target.value as Payment['method'] }))}>
-              {(Object.keys(PAYMENT_METHOD_LABELS) as Payment['method'][]).map((m) => (
-                <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>
-              ))}
-            </Select>
-          </Field>
-          {balance > 0 && (
-            <Button variant="secondary" size="sm" onClick={() => setPay((p) => ({ ...p, amount: balance }))}>
-              Preencher saldo total ({brl(balance)})
-            </Button>
-          )}
-        </div>
-      </Modal>
-
-      {/* Adicionar consumo */}
-      <Modal open={consOpen} onClose={() => setConsOpen(false)} title="Adicionar consumo"
-        footer={<><Button variant="outline" onClick={() => setConsOpen(false)}>Cancelar</Button><Button onClick={addConsumption}>Adicionar</Button></>}>
-        <div className="space-y-4">
-          <Field label="Produto / serviço">
-            <Select
-              value={cons.productId}
-              onChange={(e) => {
-                const p = products.find((x) => x.id === e.target.value);
-                setCons((c) => ({ ...c, productId: e.target.value, unitPrice: p?.price ?? c.unitPrice, description: p?.name ?? c.description }));
-              }}
-            >
-              <option value="">Item avulso…</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>{p.name} — {brl(p.price)}{p.type === 'product' && typeof p.stockQuantity === 'number' ? ` (${p.stockQuantity} em estoque)` : ''}</option>
-              ))}
-            </Select>
-          </Field>
-          {!cons.productId && (
-            <Field label="Descrição" required>
-              <Input value={cons.description} onChange={(e) => setCons((c) => ({ ...c, description: e.target.value }))} placeholder="Ex.: taxa de lavanderia" />
-            </Field>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Quantidade">
-              <Input type="number" min={1} value={cons.quantity} onChange={(e) => setCons((c) => ({ ...c, quantity: Number(e.target.value) }))} />
-            </Field>
-            <Field label="Preço unitário">
-              <Input type="number" min={0} step="0.01" value={cons.unitPrice || ''} onChange={(e) => setCons((c) => ({ ...c, unitPrice: Number(e.target.value) }))} />
-            </Field>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Confirmar check-out */}
+      {/* Confirmar check-out — precisa vir ANTES de "Registrar pagamento" no JSX pra
+          ficar por baixo dele quando os dois estão abertos ao mesmo tempo (o modal
+          que vem depois no DOM fica por cima, já que os dois usam o mesmo z-index). */}
       <Modal
         open={checkoutOpen}
         onClose={() => setCheckoutOpen(false)}
@@ -422,6 +368,62 @@ export default function BookingDetailsModal({
           </div>
 
           <p className="text-center text-xs text-slate-400">Ao confirmar, um recibo em PDF desse resumo é baixado automaticamente.</p>
+        </div>
+      </Modal>
+
+      {/* Registrar pagamento */}
+      <Modal open={payOpen} onClose={() => setPayOpen(false)} title="Registrar pagamento"
+        footer={<><Button variant="outline" onClick={() => setPayOpen(false)}>Cancelar</Button><Button onClick={addPayment}>Salvar</Button></>}>
+        <div className="space-y-4">
+          <Field label="Valor" required>
+            <Input type="number" min={0} step="0.01" value={pay.amount || ''} onChange={(e) => setPay((p) => ({ ...p, amount: Number(e.target.value) }))} placeholder="0,00" />
+          </Field>
+          <Field label="Forma de pagamento">
+            <Select value={pay.method} onChange={(e) => setPay((p) => ({ ...p, method: e.target.value as Payment['method'] }))}>
+              {(Object.keys(PAYMENT_METHOD_LABELS) as Payment['method'][]).map((m) => (
+                <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>
+              ))}
+            </Select>
+          </Field>
+          {balance > 0 && (
+            <Button variant="secondary" size="sm" onClick={() => setPay((p) => ({ ...p, amount: balance }))}>
+              Preencher saldo total ({brl(balance)})
+            </Button>
+          )}
+        </div>
+      </Modal>
+
+      {/* Adicionar consumo */}
+      <Modal open={consOpen} onClose={() => setConsOpen(false)} title="Adicionar consumo"
+        footer={<><Button variant="outline" onClick={() => setConsOpen(false)}>Cancelar</Button><Button onClick={addConsumption}>Adicionar</Button></>}>
+        <div className="space-y-4">
+          <Field label="Produto / serviço">
+            <Select
+              value={cons.productId}
+              onChange={(e) => {
+                const p = products.find((x) => x.id === e.target.value);
+                setCons((c) => ({ ...c, productId: e.target.value, unitPrice: p?.price ?? c.unitPrice, description: p?.name ?? c.description }));
+              }}
+            >
+              <option value="">Item avulso…</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>{p.name} — {brl(p.price)}{p.type === 'product' && typeof p.stockQuantity === 'number' ? ` (${p.stockQuantity} em estoque)` : ''}</option>
+              ))}
+            </Select>
+          </Field>
+          {!cons.productId && (
+            <Field label="Descrição" required>
+              <Input value={cons.description} onChange={(e) => setCons((c) => ({ ...c, description: e.target.value }))} placeholder="Ex.: taxa de lavanderia" />
+            </Field>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Quantidade">
+              <Input type="number" min={1} value={cons.quantity} onChange={(e) => setCons((c) => ({ ...c, quantity: Number(e.target.value) }))} />
+            </Field>
+            <Field label="Preço unitário">
+              <Input type="number" min={0} step="0.01" value={cons.unitPrice || ''} onChange={(e) => setCons((c) => ({ ...c, unitPrice: Number(e.target.value) }))} />
+            </Field>
+          </div>
         </div>
       </Modal>
 
