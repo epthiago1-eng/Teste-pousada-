@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertTriangle, BedDouble, CalendarDays, CheckCircle2, LogIn, LogOut, MessageCircle, Pencil, Plus, Send, ShoppingBasket, Trash2, Wallet, XCircle } from 'lucide-react';
+import { AlertTriangle, BedDouble, CalendarDays, CheckCircle2, Download, LogIn, LogOut, MessageCircle, Pencil, Plus, Send, ShoppingBasket, Trash2, Wallet, XCircle } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { Badge, Button, ConfirmDialog, Field, Input, Modal, Select } from './ui';
@@ -78,9 +78,10 @@ export default function BookingDetailsModal({
 
   const confirmCheckout = () => {
     setCheckoutOpen(false);
-    generateCheckoutReceipt({ booking, client, room, category, tenant });
     setStatus('checked-out');
   };
+
+  const downloadReceipt = () => generateCheckoutReceipt({ booking, client, room, category, tenant });
 
   const addPayment = async () => {
     if (pay.amount <= 0) return toast.error('Informe um valor válido.');
@@ -162,6 +163,9 @@ export default function BookingDetailsModal({
             )}
             {booking.status === 'checked-in' && (
               <Button onClick={() => setCheckoutOpen(true)}><LogOut size={15} /> Fazer check-out</Button>
+            )}
+            {booking.status === 'checked-out' && (
+              <Button variant="secondary" onClick={downloadReceipt}><Download size={15} /> Baixar recibo (PDF)</Button>
             )}
           </>
         }
@@ -367,7 +371,13 @@ export default function BookingDetailsModal({
             </div>
           </div>
 
-          <p className="text-center text-xs text-slate-400">Ao confirmar, um recibo em PDF desse resumo é baixado automaticamente.</p>
+          <button
+            type="button"
+            onClick={downloadReceipt}
+            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+          >
+            <Download size={14} /> Baixar recibo em PDF (opcional)
+          </button>
         </div>
       </Modal>
 
