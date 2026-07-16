@@ -302,23 +302,27 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
       <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
         {/* ---------- Coluna principal ---------- */}
         <div className="space-y-5 min-w-0">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Canal">
-              <Select value={form.channel} onChange={(e) => setForm((f) => ({ ...f, channel: e.target.value as Channel }))}>
-                {(Object.keys(CHANNEL_LABELS) as Channel[]).map((c) => (
-                  <option key={c} value={c}>{CHANNEL_LABELS[c]}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Status">
-              <Select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as BookingStatus }))}>
-                {(Object.keys(BOOKING_STATUS_LABELS) as BookingStatus[])
-                  .filter((s) => isEdit || ['pre-booking', 'confirmed', 'checked-in', 'blocked'].includes(s))
-                  .map((s) => (
-                    <option key={s} value={s}>{BOOKING_STATUS_LABELS[s]}</option>
+          <div className="flex flex-wrap gap-4">
+            <div className="min-w-[160px] flex-1">
+              <Field label="Canal">
+                <Select value={form.channel} onChange={(e) => setForm((f) => ({ ...f, channel: e.target.value as Channel }))}>
+                  {(Object.keys(CHANNEL_LABELS) as Channel[]).map((c) => (
+                    <option key={c} value={c}>{CHANNEL_LABELS[c]}</option>
                   ))}
-              </Select>
-            </Field>
+                </Select>
+              </Field>
+            </div>
+            <div className="min-w-[160px] flex-1">
+              <Field label="Status">
+                <Select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as BookingStatus }))}>
+                  {(Object.keys(BOOKING_STATUS_LABELS) as BookingStatus[])
+                    .filter((s) => isEdit || ['pre-booking', 'confirmed', 'checked-in', 'blocked'].includes(s))
+                    .map((s) => (
+                      <option key={s} value={s}>{BOOKING_STATUS_LABELS[s]}</option>
+                    ))}
+                </Select>
+              </Field>
+            </div>
           </div>
 
           {!isBlock && (
@@ -385,16 +389,22 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
           )}
 
           {!isBlock && addingNewClient && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Nome do hóspede" required>
-                <Input value={form.newClientName} onChange={(e) => setForm((f) => ({ ...f, newClientName: e.target.value }))} placeholder="Nome completo" />
-              </Field>
-              <Field label="Telefone do hóspede" required>
-                <Input value={form.newClientPhone} onChange={(e) => setForm((f) => ({ ...f, newClientPhone: formatPhoneBR(e.target.value) }))} placeholder="(00) 90000-0000" inputMode="tel" />
-              </Field>
-              <Field label="Documento (CPF/RG)" required>
-                <Input value={form.newClientDocument} onChange={(e) => setForm((f) => ({ ...f, newClientDocument: formatCPF(e.target.value) }))} placeholder="000.000.000-00" inputMode="numeric" />
-              </Field>
+            <div className="flex flex-wrap gap-4">
+              <div className="min-w-[200px] flex-1">
+                <Field label="Nome do hóspede" required>
+                  <Input value={form.newClientName} onChange={(e) => setForm((f) => ({ ...f, newClientName: e.target.value }))} placeholder="Nome completo" />
+                </Field>
+              </div>
+              <div className="min-w-[180px] flex-1">
+                <Field label="Telefone do hóspede" required>
+                  <Input value={form.newClientPhone} onChange={(e) => setForm((f) => ({ ...f, newClientPhone: formatPhoneBR(e.target.value) }))} placeholder="(00) 90000-0000" inputMode="tel" />
+                </Field>
+              </div>
+              <div className="min-w-[180px] flex-1">
+                <Field label="Documento (CPF/RG)" required>
+                  <Input value={form.newClientDocument} onChange={(e) => setForm((f) => ({ ...f, newClientDocument: formatCPF(e.target.value) }))} placeholder="000.000.000-00" inputMode="numeric" />
+                </Field>
+              </div>
               <div className="flex items-end">
                 <button
                   type="button"
@@ -487,28 +497,33 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
                   </span>
                 </button>
                 {roomCardOpen && (
-                  <div className="grid gap-4 border-t border-brand-100 bg-white px-4 py-4 sm:grid-cols-3">
-                    <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-wrap gap-4 border-t border-brand-100 bg-white px-4 py-4">
+                    <div className="w-20">
                       <Field label="Adultos">
                         <Input type="number" min={1} value={form.adults} onChange={(e) => setForm((f) => ({ ...f, adults: Number(e.target.value) }))} />
                       </Field>
+                    </div>
+                    <div className="w-20">
                       <Field label="Crianças">
                         <Input type="number" min={0} value={form.children} onChange={(e) => setForm((f) => ({ ...f, children: Number(e.target.value) }))} />
                       </Field>
                     </div>
-                    <Field label="Plano tarifário">
-                      <Select
-                        value={form.planId}
-                        onChange={(e) => setForm((f) => ({ ...f, planId: e.target.value, priceTouched: false }))}
-                        disabled={availablePlans.length === 0}
-                      >
-                        {availablePlans.length === 0 ? (
-                          <option value="">Padrão da categoria</option>
-                        ) : (
-                          availablePlans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)
-                        )}
-                      </Select>
-                    </Field>
+                    <div className="min-w-[160px] flex-1">
+                      <Field label="Plano tarifário">
+                        <Select
+                          value={form.planId}
+                          onChange={(e) => setForm((f) => ({ ...f, planId: e.target.value, priceTouched: false }))}
+                          disabled={availablePlans.length === 0}
+                        >
+                          {availablePlans.length === 0 ? (
+                            <option value="">Padrão da categoria</option>
+                          ) : (
+                            availablePlans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)
+                          )}
+                        </Select>
+                      </Field>
+                    </div>
+                    <div className="min-w-[180px] flex-1">
                     <Field label="Preço">
                       <div className="flex gap-1.5">
                         <div className="relative flex-1">
@@ -528,6 +543,7 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
                         </Select>
                       </div>
                     </Field>
+                    </div>
                   </div>
                 )}
               </div>
@@ -553,22 +569,26 @@ export default function BookingModal({ open, onClose, booking, defaults }: Props
             {!isEdit && !isBlock && (
               <div className="space-y-3 rounded-xl bg-slate-50 p-3">
                 <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-500"><Wallet size={13} /> Pré-pagamento</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Valor pago">
-                    <div className="flex gap-2">
-                      <Input type="number" min={0} step="0.01" value={depositAmount || ''} onChange={(e) => setDepositAmount(Number(e.target.value))} placeholder="0,00" />
-                      <Button type="button" variant="secondary" size="md" className="shrink-0 whitespace-nowrap" onClick={() => setDepositAmount(form.totalPrice)}>
-                        Pago em total
-                      </Button>
-                    </div>
-                  </Field>
-                  <Field label="Método">
-                    <Select value={depositMethod} onChange={(e) => setDepositMethod(e.target.value as Payment['method'])}>
-                      {(Object.keys(PAYMENT_METHOD_LABELS) as Payment['method'][]).map((m) => (
-                        <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>
-                      ))}
-                    </Select>
-                  </Field>
+                <div className="flex flex-wrap gap-3">
+                  <div className="min-w-[220px] flex-1">
+                    <Field label="Valor pago">
+                      <div className="flex gap-2">
+                        <Input type="number" min={0} step="0.01" value={depositAmount || ''} onChange={(e) => setDepositAmount(Number(e.target.value))} placeholder="0,00" className="min-w-0 flex-1" />
+                        <Button type="button" variant="secondary" size="md" className="shrink-0 whitespace-nowrap" onClick={() => setDepositAmount(form.totalPrice)}>
+                          Pago em total
+                        </Button>
+                      </div>
+                    </Field>
+                  </div>
+                  <div className="min-w-[140px] flex-1">
+                    <Field label="Método">
+                      <Select value={depositMethod} onChange={(e) => setDepositMethod(e.target.value as Payment['method'])}>
+                        {(Object.keys(PAYMENT_METHOD_LABELS) as Payment['method'][]).map((m) => (
+                          <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                  </div>
                 </div>
               </div>
             )}
