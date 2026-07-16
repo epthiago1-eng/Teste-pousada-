@@ -8,8 +8,8 @@ import {
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, ArrowRight, BedDouble, Calendar as CalendarIcon, Check, ChevronDown, ChevronRight,
-  CircleOff, Clock, DollarSign, Globe, GripVertical, List, Lock, Moon, Plus, Sparkles, User, X,
+  ArrowLeft, ArrowRight, BedDouble, Calendar as CalendarIcon, Check, CheckCircle2, ChevronDown, ChevronRight,
+  CircleOff, Clock, DollarSign, Globe, GripVertical, List, Lock, Moon, Plus, Sparkles, Unlock, User, X,
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { Button, EmptyState, PageHeader } from '../components/ui';
@@ -17,7 +17,7 @@ import BookingModal from '../components/BookingModal';
 import BookingDetailsModal from '../components/BookingDetailsModal';
 import type { Booking, Room, RoomStatus } from '../types';
 import { ROOM_STATUS_LABELS } from '../types';
-import { bookingBalance, bookingPaid, cn, isActiveBooking, rangesOverlap } from '../lib/utils';
+import { bookingBalance, bookingPaid, cn, isActiveBooking, nextReservationNumber, rangesOverlap } from '../lib/utils';
 
 const ROOM_STATUS_DOT: Record<RoomStatus, string> = {
   clean: 'bg-emerald-500',
@@ -86,7 +86,7 @@ function RoomIcon({ room, occupied }: { room: Room; occupied: boolean }) {
 
 export default function CalendarPage() {
   const navigate = useNavigate();
-  const { rooms, categories, bookings, clients, update } = useData();
+  const { rooms, categories, bookings, clients, save, update, remove } = useData();
 
   const [startDate, setStartDate] = useState(() => subDays(startOfDay(new Date()), 2));
   const [collapsed, setCollapsed] = useState<string[]>([]);
@@ -98,6 +98,19 @@ export default function CalendarPage() {
   // Menu de status do quarto — renderizado via portal (fora da tabela) para não
   // ficar preso atrás de outras linhas/cabeçalhos "sticky" com z-index próprio.
   const [statusMenu, setStatusMenu] = useState<{ roomId: string; top: number; left: number } | null>(null);
+
+  // Popup de ação rápida (Nova Reserva / Bloquear Datas) ao soltar uma seleção livre.
+  const [cellMenu, setCellMenu] = useState<{ roomId: string; checkIn: string; checkOut: string; top: number; left: number } | null>(null);
+  // Popup de ação rápida (Desbloquear Datas) ao clicar num bloqueio existente.
+  const [blockMenu, setBlockMenu] = useState<{ bookingId: string; top: number; left: number } | null>(null);
+  // Aviso verde de confirmação (bloqueio/desbloqueio), estilo faixa cheia.
+  const [banner, setBanner] = useState<string | null>(null);
+  const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showBanner = (message: string) => {
+    if (bannerTimer.current) clearTimeout(bannerTimer.current);
+    setBanner(message);
+    bannerTimer.current = setTimeout(() => setBanner(null), 3200);
+  };
 
   const openStatusMenu = (room: Room, target: HTMLElement) => {
     if (statusMenu?.roomId === room.id) return setStatusMenu(null);
@@ -112,7 +125,7 @@ export default function CalendarPage() {
     toast.success(`Quarto ${room.number}: ${ROOM_STATUS_LABELS[status]}`);
   };
 
-  // Seleção por arrasto (criar reserva)
+  // Seleção por arrasto (criar reserva ou bloqueio)
   const [sel, setSel] = useState<{ roomId: string; anchor: Date; hover: Date } | null>(null);
   const selRef = useRef(sel);
   selRef.current = sel;
@@ -120,6 +133,11 @@ export default function CalendarPage() {
   // Arrastar e soltar reservas
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ roomId: string; day: Date } | null>(null);
+
+  // Redimensionar reserva/bloqueio existente puxando a borda (check-in ou check-out)
+  const [resizing, setResizing] = useState<{ id: string; roomId: string; edge: 'start' | 'end'; checkIn: string; checkOut: string } | null>(null);
+  const resizingRef = useRef(resizing);
+  resizingRef.current = resizing;
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);
@@ -160,24 +178,69 @@ export default function CalendarPage() {
     return visibleBookings.some((b) => b.roomId === roomId && ['checked-in', 'confirmed', 'blocked'].includes(b.status) && b.checkIn <= t && b.checkOut > t);
   };
 
+  /** Existe alguma reserva/bloqueio ativo conflitando com esse período no quarto? */
+  const hasConflict = (roomId: string, checkIn: string, checkOut: string, excludeId?: string) =>
+    bookings.some((b) => b.id !== excludeId && b.roomId === roomId && isActiveBooking(b) && rangesOverlap(checkIn, checkOut, b.checkIn, b.checkOut));
+
+  const blockDates = async (roomId: string, checkIn: string, checkOut: string) => {
+    if (hasConflict(roomId, checkIn, checkOut)) return toast.error('Este período já está ocupado.');
+    await save('bookings', {
+      reservationNumber: nextReservationNumber(bookings),
+      roomId,
+      clientId: '',
+      checkIn,
+      checkOut,
+      adults: 0,
+      children: 0,
+      totalPrice: 0,
+      status: 'blocked',
+      channel: 'direct',
+      consumption: [],
+      payments: [],
+      notes: '',
+      createdAt: new Date().toISOString(),
+    });
+    showBanner('Datas bloqueadas com sucesso.');
+  };
+
+  const unblockDates = async (bookingId: string) => {
+    setBlockMenu(null);
+    await remove('bookings', bookingId);
+    showBanner('Datas desbloqueadas com sucesso.');
+  };
+
   // ---- Seleção por arrasto ----
-  const finishSelection = () => {
+  const finishSelection = (e: MouseEvent) => {
     const s = selRef.current;
     if (!s) return;
     const a = s.anchor < s.hover ? s.anchor : s.hover;
     const b = s.anchor < s.hover ? s.hover : s.anchor;
     setSel(null);
-    setNewDefaults({
-      roomId: s.roomId,
-      checkIn: format(a, 'yyyy-MM-dd'),
-      checkOut: format(addDays(b, 1), 'yyyy-MM-dd'),
-    });
+    const checkIn = format(a, 'yyyy-MM-dd');
+    const checkOut = format(addDays(b, 1), 'yyyy-MM-dd');
+    if (hasConflict(s.roomId, checkIn, checkOut)) return toast.error('Este período já está ocupado.');
+    setCellMenu({ roomId: s.roomId, checkIn, checkOut, top: e.clientY + 8, left: e.clientX + 8 });
   };
+
+  const finishResize = async (r: NonNullable<typeof resizing>) => {
+    setResizing(null);
+    const original = bookings.find((b) => b.id === r.id);
+    if (!original) return;
+    if (r.checkIn === original.checkIn && r.checkOut === original.checkOut) return;
+    if (hasConflict(r.roomId, r.checkIn, r.checkOut, r.id)) return toast.error('Não foi possível redimensionar: o período conflita com outra reserva.');
+    await update('bookings', r.id, { checkIn: r.checkIn, checkOut: r.checkOut });
+    toast.success(original.status === 'blocked' ? 'Bloqueio atualizado.' : 'Período da reserva atualizado.');
+  };
+
   useEffect(() => {
-    const up = () => finishSelection();
+    const up = (e: MouseEvent) => {
+      if (resizingRef.current) finishResize(resizingRef.current);
+      else finishSelection(e);
+    };
     window.addEventListener('mouseup', up);
     return () => window.removeEventListener('mouseup', up);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookings]);
 
   const inSelection = (roomId: string, day: Date) => {
     if (!sel || sel.roomId !== roomId) return false;
@@ -262,13 +325,19 @@ export default function CalendarPage() {
         </button>
       </div>
 
+      {banner && (
+        <div className="anim-card mb-3 flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm">
+          <CheckCircle2 size={16} className="shrink-0" /> {banner}
+        </div>
+      )}
+
       {rooms.length === 0 ? (
         <EmptyState icon={BedDouble} title="Nenhum quarto cadastrado" subtitle="Cadastre seus quartos para visualizar o calendário de ocupação." />
       ) : (
         <div
           className="overflow-auto rounded-2xl border border-slate-200 bg-white shadow-sm"
           style={{ maxHeight: 'calc(100dvh - 230px)' }}
-          onScroll={() => statusMenu && setStatusMenu(null)}
+          onScroll={() => { statusMenu && setStatusMenu(null); cellMenu && setCellMenu(null); blockMenu && setBlockMenu(null); }}
         >
           <table className="min-w-max table-fixed border-separate border-spacing-0">
             <colgroup>
@@ -401,6 +470,17 @@ export default function CalendarPage() {
                                   }}
                                   onMouseEnter={() => {
                                     if (selRef.current && selRef.current.roomId === room.id) setSel((s) => (s ? { ...s, hover: day } : s));
+                                    if (resizingRef.current && resizingRef.current.roomId === room.id) {
+                                      setResizing((r) => {
+                                        if (!r) return r;
+                                        if (r.edge === 'end') {
+                                          const newCheckOut = format(addDays(day, 1), 'yyyy-MM-dd');
+                                          return newCheckOut > r.checkIn ? { ...r, checkOut: newCheckOut } : r;
+                                        }
+                                        const newCheckIn = format(day, 'yyyy-MM-dd');
+                                        return newCheckIn < r.checkOut ? { ...r, checkIn: newCheckIn } : r;
+                                      });
+                                    }
                                   }}
                                 >
                                   {free && !sel && (
@@ -415,8 +495,9 @@ export default function CalendarPage() {
 
                                 {/* Barras de reserva (renderizadas no primeiro dia visível) */}
                                 {roomBars.map((b) => {
-                                  const ci = parseISO(b.checkIn);
-                                  const co = parseISO(b.checkOut);
+                                  const isResizingThis = resizing?.id === b.id;
+                                  const ci = parseISO(isResizingThis ? resizing.checkIn : b.checkIn);
+                                  const co = parseISO(isResizingThis ? resizing.checkOut : b.checkOut);
                                   const isFirstVisibleDay = isSameDay(day, ci) || (isSameDay(day, days[0]) && ci < days[0]);
                                   if (!isFirstVisibleDay) return null;
 
@@ -439,19 +520,46 @@ export default function CalendarPage() {
                                   return (
                                     <div
                                       key={b.id}
-                                      draggable={isActiveBooking(b)}
+                                      draggable={isActiveBooking(b) && !isResizingThis}
                                       onDragStart={(e) => { setDragId(b.id); e.dataTransfer.effectAllowed = 'move'; }}
                                       onDragEnd={() => { setDragId(null); setDropTarget(null); }}
-                                      onClick={(e) => { e.stopPropagation(); setDetailsId(b.id); }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (isBlock) setBlockMenu({ bookingId: b.id, top: e.clientY + 8, left: e.clientX + 8 });
+                                        else setDetailsId(b.id);
+                                      }}
                                       onMouseDown={(e) => e.stopPropagation()}
                                       title={`${isBlock ? 'Bloqueado' : clientName(b.clientId)} · ${format(ci, 'dd/MM')} → ${format(co, 'dd/MM')}`}
                                       className={cn(
-                                        'absolute bottom-[6px] top-[6px] z-30 flex cursor-pointer select-none flex-col overflow-hidden whitespace-nowrap rounded-[10px] border-l-4 shadow-sm transition-all hover:z-40 hover:scale-[1.01] hover:shadow-md',
+                                        'group/bar absolute bottom-[6px] top-[6px] z-30 flex cursor-pointer select-none flex-col overflow-hidden whitespace-nowrap rounded-[10px] border-l-4 shadow-sm transition-all hover:z-40 hover:scale-[1.01] hover:shadow-md',
                                         barStyle[b.status] ?? 'bg-white border-slate-400',
-                                        dragId === b.id && 'opacity-40 grayscale'
+                                        dragId === b.id && 'opacity-40 grayscale',
+                                        isResizingThis && 'z-40 scale-[1.01] shadow-md ring-2 ring-brand-500'
                                       )}
                                       style={{ left: isActualCheckIn ? HALF : 0, width, minWidth: 22 }}
                                     >
+                                      {isActiveBooking(b) && (
+                                        <>
+                                          <div
+                                            title="Arraste para mudar o check-in"
+                                            onMouseDown={(e) => {
+                                              e.stopPropagation();
+                                              e.preventDefault();
+                                              setResizing({ id: b.id, roomId: room.id, edge: 'start', checkIn: b.checkIn, checkOut: b.checkOut });
+                                            }}
+                                            className="absolute bottom-0 left-0 top-0 z-50 w-2 cursor-ew-resize opacity-0 transition-opacity group-hover/bar:opacity-100 hover:bg-brand-600/30"
+                                          />
+                                          <div
+                                            title="Arraste para mudar o check-out"
+                                            onMouseDown={(e) => {
+                                              e.stopPropagation();
+                                              e.preventDefault();
+                                              setResizing({ id: b.id, roomId: room.id, edge: 'end', checkIn: b.checkIn, checkOut: b.checkOut });
+                                            }}
+                                            className="absolute bottom-0 right-0 top-0 z-50 w-2 cursor-ew-resize opacity-0 transition-opacity group-hover/bar:opacity-100 hover:bg-brand-600/30"
+                                          />
+                                        </>
+                                      )}
                                       <div className="flex items-center gap-1.5 border-b border-black/[0.04] bg-white/60 px-1.5 py-0.5 text-[11px] font-bold text-slate-800">
                                         <StatusDot status={b.status} />
                                         <span className="flex-1 truncate tracking-tight">{isBlock ? 'Bloqueado' : clientName(b.clientId)}</span>
@@ -501,7 +609,7 @@ export default function CalendarPage() {
               <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-blue-500" /> Hospedado</span>
               <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-slate-500" /> Finalizada</span>
               <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-slate-800" /> Bloqueio</span>
-              <span className="ml-auto hidden text-slate-400 lg:inline">Arraste nas células para criar · arraste uma reserva para mover</span>
+              <span className="ml-auto hidden text-slate-400 lg:inline">Clique ou arraste para reservar/bloquear · arraste uma reserva para mover · puxe a borda para redimensionar</span>
             </div>
             <button
               onClick={() => setLegendOpen(!legendOpen)}
@@ -544,6 +652,51 @@ export default function CalendarPage() {
             </>
           );
         })(),
+        document.body
+      )}
+
+      {cellMenu && createPortal(
+        <>
+          <div className="fixed inset-0 z-[200]" onClick={() => setCellMenu(null)} />
+          <div
+            className="fixed z-[210] w-48 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
+            style={{ top: cellMenu.top, left: cellMenu.left }}
+          >
+            <button
+              type="button"
+              onClick={() => { setNewDefaults({ roomId: cellMenu.roomId, checkIn: cellMenu.checkIn, checkOut: cellMenu.checkOut }); setCellMenu(null); }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+            >
+              <Plus size={15} className="text-brand-600" /> Nova Reserva
+            </button>
+            <button
+              type="button"
+              onClick={() => { blockDates(cellMenu.roomId, cellMenu.checkIn, cellMenu.checkOut); setCellMenu(null); }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+            >
+              <Lock size={15} className="text-slate-500" /> Bloquear Datas
+            </button>
+          </div>
+        </>,
+        document.body
+      )}
+
+      {blockMenu && createPortal(
+        <>
+          <div className="fixed inset-0 z-[200]" onClick={() => setBlockMenu(null)} />
+          <div
+            className="fixed z-[210] w-48 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
+            style={{ top: blockMenu.top, left: blockMenu.left }}
+          >
+            <button
+              type="button"
+              onClick={() => unblockDates(blockMenu.bookingId)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+            >
+              <Unlock size={15} className="text-slate-500" /> Desbloquear Datas
+            </button>
+          </div>
+        </>,
         document.body
       )}
 
