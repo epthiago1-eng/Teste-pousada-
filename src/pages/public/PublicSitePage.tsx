@@ -60,8 +60,42 @@ const HERO_FRAME_COUNT = 65;
  * tempo de olhar antes de a foto do quarto entrar.
  */
 const HERO_FRAMES_END = 0.7;
-const heroFramePath = (i: number) => `/booking-scroll/frame-${String(i).padStart(3, '0')}.avif`;
-const heroFrameFallbackPath = (i: number) => `/booking-scroll/frame-${String(i).padStart(3, '0')}.webp`;
+const frameName = (i: number) => `frame-${String(i).padStart(3, '0')}`;
+/**
+ * Duas qualidades do mesmo vídeo. A escolha é feita em runtime (ver `decideTier`):
+ * `hd` 1600x900 (~53KB/frame) para conexões folgadas em telas grandes,
+ * `sd` 1024x576 (~28KB/frame) no resto. `webp` só socorre navegadores sem AVIF.
+ */
+const heroTiers = {
+  hd: (i: number) => `/booking-scroll/hd/${frameName(i)}.avif`,
+  sd: (i: number) => `/booking-scroll/${frameName(i)}.avif`,
+  webp: (i: number) => `/booking-scroll/${frameName(i)}.webp`,
+};
+type HeroTier = 'hd' | 'sd';
+
+/** Banda mínima estimada para valer a pena puxar a sequência HD (~3,4MB). */
+const HD_MIN_MBPS = 4;
+
+/** Mbps estimados a partir do download já feito de `url`; null se não dá para medir. */
+function measuredMbps(url: string): number | null {
+  const entry = performance.getEntriesByName(url).pop() as PerformanceResourceTiming | undefined;
+  if (!entry || !entry.duration || !entry.transferSize) return null; // sem dado ou veio do cache
+  return (entry.transferSize * 8) / (entry.duration * 1000);
+}
+
+/**
+ * Escolhe a qualidade da sequência: respeita economia de dados, evita gastar
+ * banda com HD em tela pequena (onde não aparece nitidez) e, quando o navegador
+ * expõe a informação, usa a velocidade real medida no primeiro frame.
+ */
+function decideTier(probeUrl: string): HeroTier {
+  const conn = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+  if (conn?.saveData) return 'sd';
+  if (conn?.effectiveType && ['slow-2g', '2g', '3g'].includes(conn.effectiveType)) return 'sd';
+  if (window.innerWidth * Math.min(window.devicePixelRatio || 1, 2) < 1100) return 'sd';
+  const mbps = measuredMbps(probeUrl);
+  return mbps !== null && mbps < HD_MIN_MBPS ? 'sd' : 'hd';
+}
 
 /** Imagem já pronta para desenhar? */
 const frameReady = (img?: HTMLImageElement) => Boolean(img && img.complete && img.naturalWidth > 0);
@@ -76,27 +110,47 @@ function nearestLoaded(images: HTMLImageElement[], idx: number): HTMLImageElemen
   return null;
 }
 
-function useFrameSequence(frameCount: number, framePath: (i: number) => string, fallbackPath: (i: number) => string) {
+function useFrameSequence(frameCount: number) {
   const imagesRef = useRef<HTMLImageElement[]>([]);
   const [firstFrameLoaded, setFirstFrameLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    const images: HTMLImageElement[] = [];
-    for (let i = 1; i <= frameCount; i++) {
+    const images: HTMLImageElement[] = new Array(frameCount);
+    imagesRef.current = images;
+
+    const load = (i: number, url: string) => {
       const img = new Image();
       // Prioriza os primeiros frames (visíveis logo de cara); o resto carrega em segundo plano.
       img.fetchPriority = i <= 4 ? 'high' : 'low';
       img.decoding = 'async';
       // AVIF é bem mais leve; se o navegador não suportar, cai pro WebP automaticamente.
       img.onerror = () => {
-        if (img.src.endsWith('.avif')) img.src = fallbackPath(i);
+        if (img.src.endsWith('.avif')) img.src = heroTiers.webp(i);
       };
-      img.src = framePath(i);
-      if (i === 1) img.onload = () => !cancelled && setFirstFrameLoaded(true);
-      images.push(img);
-    }
-    imagesRef.current = images;
+      img.src = url;
+      return img;
+    };
+
+    // O primeiro frame vem sempre na versão leve: pinta a tela quase de imediato
+    // e serve de sonda para medir a banda antes de comprometer o resto.
+    const probeUrl = heroTiers.sd(1);
+    const probe = load(1, probeUrl);
+    images[0] = probe;
+
+    probe.onload = () => {
+      if (cancelled) return;
+      setFirstFrameLoaded(true);
+      // Se a sonda caiu pro WebP, o navegador não lê AVIF — não adianta pedir HD.
+      const tier: HeroTier = probe.src.endsWith('.webp') ? 'sd' : decideTier(probeUrl);
+      for (let i = 2; i <= frameCount; i++) images[i - 1] = load(i, heroTiers[tier](i));
+      if (tier === 'hd') {
+        // Repõe o frame 1 em HD, trocando só quando chegar para não piscar.
+        const hd = load(1, heroTiers.hd(1));
+        hd.onload = () => { if (!cancelled) images[0] = hd; };
+      }
+    };
+
     return () => {
       cancelled = true;
     };
@@ -112,7 +166,7 @@ function useFrameSequence(frameCount: number, framePath: (i: number) => string, 
 function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomPhoto?: string; onReserve: () => void }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { imagesRef, firstFrameLoaded } = useFrameSequence(HERO_FRAME_COUNT, heroFramePath, heroFrameFallbackPath);
+  const { imagesRef, firstFrameLoaded } = useFrameSequence(HERO_FRAME_COUNT);
   const [p, setP] = useState(0); // progresso 0..1 dentro do trilho
 
   const drawFrame = (progress: number) => {
@@ -185,7 +239,8 @@ function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomP
   // cheia (último frame segurado, com o convite já legível) · 0.9–1 "entrando" (foto do quarto)
   const fade2 = Math.min(1, Math.max(0, (p - 0.9) / 0.1)); // camada interna
   const t1 = 1 - Math.min(1, p / 0.22); // título
-  const t2 = p > 0.26 && p < 0.62 ? Math.min(1, (p - 0.26) / 0.12) * (1 - Math.max(0, (p - 0.5) / 0.12)) : 0; // localização
+  // Entra exatamente quando o título termina de sumir (t1 zera em 0.22), sem intervalo vazio.
+  const t2 = p > 0.22 && p < 0.62 ? Math.min(1, (p - 0.22) / 0.07) * (1 - Math.max(0, (p - 0.5) / 0.12)) : 0; // localização
   const t3 = Math.min(1, Math.max(0, (p - 0.7) / 0.1)); // convite final
 
   return (
