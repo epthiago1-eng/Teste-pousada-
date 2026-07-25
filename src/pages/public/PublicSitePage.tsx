@@ -238,11 +238,15 @@ function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomP
   // Fases: 0–0.3 vista distante · 0.3–0.7 voo de aproximação · 0.7–0.9 a pousada em tela
   // cheia (último frame segurado, com o convite já legível) · 0.9–1 "entrando" (foto do quarto)
   const fade2 = Math.min(1, Math.max(0, (p - 0.9) / 0.1)); // camada interna
-  const t1 = 1 - Math.min(1, p / 0.22); // título
+  // A baleia domina o quadro ate por volta do frame 26 de 65 (0.28 do trilho): a
+  // legenda fica firme enquanto isso e some junto com a virada da camera.
+  const t1 = 1 - Math.min(1, Math.max(0, (p - 0.12) / 0.15)); // legenda do monumento
   // A fachada da pousada se firma por volta do frame 40 de 65 — ou seja, em 0.44 do
   // trilho — e é aí que a apresentação da pousada entra. Entre 0.22 e 0.44 o voo
   // atravessa as palmeiras sem texto competindo com a imagem.
-  const t3 = Math.min(1, Math.max(0, (p - 0.44) / 0.08)); // apresentação da pousada
+  // Entra junto com a fachada: comeca a surgir quando ela desponta (frame ~35) e
+  // esta inteira quando a camera assenta nela (frame ~42).
+  const t3 = Math.min(1, Math.max(0, (p - 0.38) / 0.08)); // apresentação da pousada
 
   return (
     <div ref={trackRef} style={{ height: '320vh' }} className="relative">
@@ -271,11 +275,12 @@ function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomP
         <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center text-white">
           {/* Abertura: legenda do monumento, sobre a tomada da baleia */}
           <div style={{ opacity: t1, transform: `translateY(${(1 - t1) * -22}px)` }}>
+            <MapPin size={32} className="mx-auto mb-3 text-brand-300 drop-shadow" />
             <h1 className="text-3xl italic text-white drop-shadow-lg sm:text-5xl" style={{ fontFamily: "'Playfair Display', serif" }}>
-              Em frente à Praça da Baleia
+              Em frente à Praça da Baleia 🐋
             </h1>
             <p className="mt-3 text-sm font-semibold uppercase tracking-[0.25em] text-white/75 drop-shadow sm:text-base">
-              O monumento de Rio das Ostras
+              O monumento mais famoso da cidade
             </p>
           </div>
           {/* Chegada: a fachada entra em cena e a pousada se apresenta */}
