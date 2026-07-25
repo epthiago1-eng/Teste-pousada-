@@ -239,9 +239,10 @@ function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomP
   // cheia (último frame segurado, com o convite já legível) · 0.9–1 "entrando" (foto do quarto)
   const fade2 = Math.min(1, Math.max(0, (p - 0.9) / 0.1)); // camada interna
   const t1 = 1 - Math.min(1, p / 0.22); // título
-  // Entra exatamente quando o título termina de sumir (t1 zera em 0.22), sem intervalo vazio.
-  const t2 = p > 0.22 && p < 0.62 ? Math.min(1, (p - 0.22) / 0.07) * (1 - Math.max(0, (p - 0.5) / 0.12)) : 0; // localização
-  const t3 = Math.min(1, Math.max(0, (p - 0.7) / 0.1)); // convite final
+  // A fachada da pousada se firma por volta do frame 40 de 65 — ou seja, em 0.44 do
+  // trilho — e é aí que a apresentação da pousada entra. Entre 0.22 e 0.44 o voo
+  // atravessa as palmeiras sem texto competindo com a imagem.
+  const t3 = Math.min(1, Math.max(0, (p - 0.44) / 0.08)); // apresentação da pousada
 
   return (
     <div ref={trackRef} style={{ height: '320vh' }} className="relative">
@@ -268,20 +269,21 @@ function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomP
 
         {/* Textos por fase */}
         <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center text-white">
+          {/* Abertura: legenda do monumento, sobre a tomada da baleia */}
           <div style={{ opacity: t1, transform: `translateY(${(1 - t1) * -22}px)` }}>
-            {tenant.logoUrl && <img src={tenant.logoUrl} alt="" className="mx-auto mb-4 h-20 w-20 rounded-3xl object-cover shadow-2xl" />}
-            <p className="text-xs font-bold uppercase tracking-[0.35em] text-white/70 drop-shadow">Bem-vindo(a) à</p>
-            <h1 className="mt-2 text-4xl italic text-white drop-shadow-lg sm:text-6xl" style={{ fontFamily: "'Playfair Display', serif" }}>{tenant.name}</h1>
-            {tenant.description && <p className="mx-auto mt-3 max-w-xl text-sm text-white/85 drop-shadow sm:text-lg">{tenant.description}</p>}
+            <h1 className="text-3xl italic text-white drop-shadow-lg sm:text-5xl" style={{ fontFamily: "'Playfair Display', serif" }}>
+              Em frente à Praça da Baleia
+            </h1>
+            <p className="mt-3 text-sm font-semibold uppercase tracking-[0.25em] text-white/75 drop-shadow sm:text-base">
+              O monumento de Rio das Ostras
+            </p>
           </div>
-          <div className="absolute" style={{ opacity: t2, transform: `scale(${0.92 + t2 * 0.08})` }}>
-            <MapPin size={36} className="mx-auto mb-3 text-brand-300 drop-shadow" />
-            <p className="text-2xl font-extrabold drop-shadow sm:text-4xl">Em frente à Praça da Baleia 🐋</p>
-            {tenant.address && <p className="mt-2 text-sm text-white/85 drop-shadow sm:text-base">📍 {tenant.address}</p>}
-          </div>
+          {/* Chegada: a fachada entra em cena e a pousada se apresenta */}
           <div className="absolute" style={{ opacity: t3, transform: `translateY(${(1 - t3) * 26}px)` }}>
-            <p className="text-3xl font-extrabold drop-shadow sm:text-5xl">Seja bem-vindo</p>
-            <p className="mt-2 text-lg text-white/90 drop-shadow sm:text-2xl">O seu refúgio em Rio das Ostras</p>
+            {tenant.logoUrl && <img src={tenant.logoUrl} alt="" className="mx-auto mb-4 h-16 w-16 rounded-2xl object-cover shadow-2xl sm:h-20 sm:w-20" />}
+            <p className="text-4xl italic text-white drop-shadow-lg sm:text-7xl" style={{ fontFamily: "'Playfair Display', serif" }}>{tenant.name}</p>
+            <p className="mt-3 text-xl font-bold drop-shadow sm:text-3xl">Seja bem-vindo</p>
+            <p className="mt-1.5 text-sm text-white/85 drop-shadow sm:text-lg">Seu refúgio de Rio das Ostras</p>
             <button
               onClick={onReserve}
               className="mt-6 rounded-2xl bg-white px-8 py-4 text-base font-extrabold text-slate-900 shadow-2xl transition hover:scale-105 cursor-pointer"
