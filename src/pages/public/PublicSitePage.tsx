@@ -53,9 +53,22 @@ const stayTotal = (cat: PublicCategory, checkIn: string, checkOut: string) => {
    Sequência de frames (vídeo da pousada convertido em imagens),
    pré-carregada e desenhada num <canvas> conforme o progresso do scroll.
    ================================================================ */
-const HERO_FRAME_COUNT = 32;
+const HERO_FRAME_COUNT = 65;
 const heroFramePath = (i: number) => `/booking-scroll/frame-${String(i).padStart(3, '0')}.avif`;
 const heroFrameFallbackPath = (i: number) => `/booking-scroll/frame-${String(i).padStart(3, '0')}.webp`;
+
+/** Imagem já pronta para desenhar? */
+const frameReady = (img?: HTMLImageElement) => Boolean(img && img.complete && img.naturalWidth > 0);
+
+/** O frame `idx` se já carregou; senão, o carregado mais próximo dele (antes ou depois). */
+function nearestLoaded(images: HTMLImageElement[], idx: number): HTMLImageElement | null {
+  if (frameReady(images[idx])) return images[idx];
+  for (let d = 1; d < images.length; d++) {
+    if (frameReady(images[idx - d])) return images[idx - d];
+    if (frameReady(images[idx + d])) return images[idx + d];
+  }
+  return null;
+}
 
 function useFrameSequence(frameCount: number, framePath: (i: number) => string, fallbackPath: (i: number) => string) {
   const imagesRef = useRef<HTMLImageElement[]>([]);
@@ -98,9 +111,11 @@ function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomP
 
   const drawFrame = (progress: number) => {
     const canvas = canvasRef.current;
-    const idx = Math.min(HERO_FRAME_COUNT - 1, Math.max(0, Math.floor(progress * HERO_FRAME_COUNT)));
-    const img = imagesRef.current[idx];
-    if (!canvas || !img || !img.complete || img.naturalWidth === 0) return;
+    const idx = Math.min(HERO_FRAME_COUNT - 1, Math.max(0, Math.round(progress * (HERO_FRAME_COUNT - 1))));
+    // Enquanto a sequência ainda está baixando, usa o frame carregado mais próximo:
+    // assim a animação já acompanha o scroll em vez de congelar num quadro antigo.
+    const img = nearestLoaded(imagesRef.current, idx);
+    if (!canvas || !img) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
