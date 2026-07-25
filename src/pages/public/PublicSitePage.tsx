@@ -54,6 +54,12 @@ const stayTotal = (cat: PublicCategory, checkIn: string, checkOut: string) => {
    pré-carregada e desenhada num <canvas> conforme o progresso do scroll.
    ================================================================ */
 const HERO_FRAME_COUNT = 65;
+/**
+ * Fração do scroll em que a sequência chega ao último frame. O trecho restante
+ * segura esse frame — a fachada da pousada, onde o vídeo termina — para dar
+ * tempo de olhar antes de a foto do quarto entrar.
+ */
+const HERO_FRAMES_END = 0.7;
 const heroFramePath = (i: number) => `/booking-scroll/frame-${String(i).padStart(3, '0')}.avif`;
 const heroFrameFallbackPath = (i: number) => `/booking-scroll/frame-${String(i).padStart(3, '0')}.webp`;
 
@@ -111,7 +117,8 @@ function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomP
 
   const drawFrame = (progress: number) => {
     const canvas = canvasRef.current;
-    const idx = Math.min(HERO_FRAME_COUNT - 1, Math.max(0, Math.round(progress * (HERO_FRAME_COUNT - 1))));
+    const seq = Math.min(1, progress / HERO_FRAMES_END);
+    const idx = Math.min(HERO_FRAME_COUNT - 1, Math.max(0, Math.round(seq * (HERO_FRAME_COUNT - 1))));
     // Enquanto a sequência ainda está baixando, usa o frame carregado mais próximo:
     // assim a animação já acompanha o scroll em vez de congelar num quadro antigo.
     const img = nearestLoaded(imagesRef.current, idx);
@@ -174,14 +181,15 @@ function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstFrameLoaded]);
 
-  // Fases: 0–0.3 vista distante · 0.3–0.7 voo de aproximação · 0.7–1 "entrando" (foto do quarto)
-  const fade2 = Math.min(1, Math.max(0, (p - 0.72) / 0.22)); // camada interna
+  // Fases: 0–0.3 vista distante · 0.3–0.7 voo de aproximação · 0.7–0.9 a pousada em tela
+  // cheia (último frame segurado, com o convite já legível) · 0.9–1 "entrando" (foto do quarto)
+  const fade2 = Math.min(1, Math.max(0, (p - 0.9) / 0.1)); // camada interna
   const t1 = 1 - Math.min(1, p / 0.22); // título
   const t2 = p > 0.26 && p < 0.62 ? Math.min(1, (p - 0.26) / 0.12) * (1 - Math.max(0, (p - 0.5) / 0.12)) : 0; // localização
-  const t3 = Math.min(1, Math.max(0, (p - 0.78) / 0.18)); // convite final
+  const t3 = Math.min(1, Math.max(0, (p - 0.7) / 0.1)); // convite final
 
   return (
-    <div ref={trackRef} style={{ height: '280vh' }} className="relative">
+    <div ref={trackRef} style={{ height: '320vh' }} className="relative">
       <div className="sticky top-0 h-dvh overflow-hidden bg-slate-900">
         {/* Camada 1: sequência de frames do vídeo, controlada pelo scroll */}
         <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
@@ -213,12 +221,12 @@ function CinematicHero({ tenant, roomPhoto, onReserve }: { tenant: Tenant; roomP
           </div>
           <div className="absolute" style={{ opacity: t2, transform: `scale(${0.92 + t2 * 0.08})` }}>
             <MapPin size={36} className="mx-auto mb-3 text-brand-300 drop-shadow" />
-            <p className="text-2xl font-extrabold drop-shadow sm:text-4xl">Um refúgio esperando por você</p>
+            <p className="text-2xl font-extrabold drop-shadow sm:text-4xl">Em frente à Praça da Baleia 🐋</p>
             {tenant.address && <p className="mt-2 text-sm text-white/85 drop-shadow sm:text-base">📍 {tenant.address}</p>}
           </div>
           <div className="absolute" style={{ opacity: t3, transform: `translateY(${(1 - t3) * 26}px)` }}>
-            <p className="text-3xl font-extrabold drop-shadow sm:text-5xl">Em frente à Praça da Baleia 🐋</p>
-            <p className="mt-2 text-sm text-white/80 drop-shadow sm:text-base">O cartão-postal de Rio das Ostras, pertinho de você</p>
+            <p className="text-3xl font-extrabold drop-shadow sm:text-5xl">Seja bem-vindo</p>
+            <p className="mt-2 text-lg text-white/90 drop-shadow sm:text-2xl">O seu refúgio em Rio das Ostras</p>
             <button
               onClick={onReserve}
               className="mt-6 rounded-2xl bg-white px-8 py-4 text-base font-extrabold text-slate-900 shadow-2xl transition hover:scale-105 cursor-pointer"
