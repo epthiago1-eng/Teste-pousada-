@@ -367,9 +367,15 @@ export default function CalendarPage() {
                     onMouseLeave={() => setHoveredDayIdx((h) => (h === index ? null : h))}
                     className={cn(
                       'relative h-[52px] border-b border-slate-100 p-0 text-center',
-                      hoveredDayIdx === index ? 'bg-sky-100/80' : isToday(d) ? 'bg-brand-50' : isWeekend(d) ? 'bg-slate-50' : 'bg-white'
+                      isToday(d) ? 'bg-brand-50' : isWeekend(d) ? 'bg-slate-50' : 'bg-white'
                     )}
+                    style={{ zIndex: NUM_DAYS - index }}
                   >
+                    {/* Destaque de hover: alinhado à diária (meio-dia → meio-dia), não ao dia do
+                        calendário — a mesma faixa onde cai o "+" e as divisórias abaixo. */}
+                    {hoveredDayIdx === index && (
+                      <span className="pointer-events-none absolute inset-y-0 left-1/2 z-[6] w-full bg-sky-100/80" />
+                    )}
                     {isToday(d) && (
                       <span className="pointer-events-none absolute -bottom-px -top-px z-40 w-[2px] bg-brand-600" style={{ left: `${nowLinePct}%` }} />
                     )}
@@ -411,10 +417,15 @@ export default function CalendarPage() {
                             onMouseLeave={() => setHoveredDayIdx((h) => (h === index ? null : h))}
                             className={cn(
                               'relative h-[42px] border-b border-slate-100 p-0',
-                              hoveredDayIdx === index ? 'bg-sky-100/70' : isToday(d) ? 'bg-brand-50/40' : isWeekend(d) ? 'bg-slate-50/60' : 'bg-slate-50/30'
+                              isToday(d) ? 'bg-brand-50/40' : isWeekend(d) ? 'bg-slate-50/60' : 'bg-slate-50/30'
                             )}
+                            style={{ zIndex: NUM_DAYS - index }}
                           >
                             <span className="pointer-events-none absolute inset-y-0 left-1/2 z-0 w-px bg-slate-100" />
+                            {/* Destaque de hover: mesma faixa (meio-dia → meio-dia) do "+" nas linhas de baixo. */}
+                            {hoveredDayIdx === index && (
+                              <span className="pointer-events-none absolute inset-y-0 left-1/2 z-[6] w-full bg-sky-100/70" />
+                            )}
                             {/* O contador é de vagas na diária, então fica centrado na diária, não no dia. */}
                             {free !== null && (
                               <span className={cn('absolute inset-y-0 left-1/2 z-10 flex w-full items-center justify-center text-[10px] font-bold', free > 0 ? 'text-emerald-500' : 'text-rose-400')} title={`${free} quarto(s) livre(s)`}>
@@ -453,13 +464,17 @@ export default function CalendarPage() {
                                 onMouseLeave={() => setHoveredDayIdx((h) => (h === index ? null : h))}
                                 className={cn(
                                   'relative h-[58px] border-b border-slate-100 p-0',
-                                  hoveredDayIdx === index ? 'bg-sky-100/70' : isToday(day) ? 'bg-brand-50/20' : isWeekend(day) ? 'bg-slate-50/40' : 'bg-white'
+                                  isToday(day) ? 'bg-brand-50/20' : isWeekend(day) ? 'bg-slate-50/40' : 'bg-white'
                                 )}
                                 style={{ zIndex: NUM_DAYS - index }}
                               >
                                 {/* Divisória no meio-dia: delimita a diária (meio-dia → meio-dia),
                                     e não a virada do dia, para casar com as barras e o botão "+". */}
                                 <span className="pointer-events-none absolute inset-y-0 left-1/2 z-0 w-px bg-slate-100" />
+                                {/* Destaque de hover: mesma faixa (meio-dia → meio-dia) do "+". */}
+                                {hoveredDayIdx === index && (
+                                  <span className="pointer-events-none absolute inset-y-0 left-1/2 z-[6] w-full bg-sky-100/70" />
+                                )}
                                 {/* Sombreamento do passado */}
                                 {(isPast || isToday(day)) && (
                                   <span className="pointer-events-none absolute bottom-0 left-0 top-0 z-0 bg-slate-100/50" style={{ width: isPast ? '100%' : '50%' }} />
