@@ -369,13 +369,7 @@ export default function CalendarPage() {
                       'relative h-[52px] border-b border-slate-100 p-0 text-center',
                       isToday(d) ? 'bg-brand-50' : isWeekend(d) ? 'bg-slate-50' : 'bg-white'
                     )}
-                    style={{ zIndex: NUM_DAYS - index }}
                   >
-                    {/* Destaque de hover: alinhado à diária (meio-dia → meio-dia), não ao dia do
-                        calendário — a mesma faixa onde cai o "+" e as divisórias abaixo. */}
-                    {hoveredDayIdx === index && (
-                      <span className="pointer-events-none absolute inset-y-0 left-1/2 z-[6] w-full bg-sky-100/80" />
-                    )}
                     {isToday(d) && (
                       <span className="pointer-events-none absolute -bottom-px -top-px z-40 w-[2px] bg-brand-600" style={{ left: `${nowLinePct}%` }} />
                     )}
