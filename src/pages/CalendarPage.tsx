@@ -369,10 +369,10 @@ export default function CalendarPage() {
                       'relative h-[52px] border-b border-slate-100 p-0 text-center',
                       isToday(d) ? 'bg-brand-50' : isWeekend(d) ? 'bg-slate-50' : 'bg-white'
                     )}
-                    style={{ zIndex: NUM_DAYS - index }}
                   >
-                    {/* Divisória no meio-dia, casando com a mesma linha do corpo do calendário. */}
-                    <span className="pointer-events-none absolute inset-y-0 left-1/2 z-0 w-px bg-slate-300" />
+                    {/* Divisória na virada do dia (meia-noite) — de propósito desencontrada da
+                        divisória do corpo do calendário, que marca a diária (meio-dia). */}
+                    <span className="pointer-events-none absolute inset-y-0 right-0 z-0 w-px bg-slate-300" />
                     {isToday(d) && (
                       <span className="pointer-events-none absolute -bottom-px -top-px z-40 w-[2px] bg-brand-600" style={{ left: `${nowLinePct}%` }} />
                     )}
