@@ -632,24 +632,28 @@ export default function CalendarPage() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
 
-          {/* Legenda: fixa no desktop, botão flutuante no mobile */}
-          <div className="sticky bottom-0 left-0 border-t border-slate-100 bg-white px-3 py-2 sm:px-4">
-            <div className={cn('flex-wrap items-center gap-3 text-[11px] font-semibold text-slate-500', legendOpen ? 'flex pb-2' : 'hidden sm:flex')}>
-              <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-amber-400" /> Pré-reserva</span>
-              <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Confirmada</span>
-              <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-blue-500" /> Hospedado</span>
-              <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-slate-500" /> Finalizada</span>
-              <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-slate-800" /> Bloqueio</span>
-              <span className="ml-auto hidden text-slate-400 lg:inline">Clique ou arraste para reservar/bloquear · arraste uma reserva para mover · puxe a borda para redimensionar</span>
-            </div>
-            <button
-              onClick={() => setLegendOpen(!legendOpen)}
-              className="ml-auto block rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 shadow-sm cursor-pointer sm:hidden"
-            >
-              {legendOpen ? 'Fechar' : 'Legenda'}
-            </button>
+      {/* Legenda: fixa na tela, sobrepondo o calendário — não some ao rolar a página.
+          Fica acima do menu inferior mobile (que só desaparece em lg:) e alinhada com
+          o conteúdo (à direita da barra lateral fixa) no desktop. */}
+      {rooms.length > 0 && (
+        <div className="fixed inset-x-0 bottom-16 z-40 border-t border-slate-200 bg-white px-3 py-2 shadow-[0_-4px_10px_-4px_rgba(0,0,0,0.08)] sm:px-4 lg:inset-x-auto lg:bottom-0 lg:left-60 lg:right-0">
+          <div className={cn('flex-wrap items-center gap-3 text-[11px] font-semibold text-slate-500', legendOpen ? 'flex pb-2' : 'hidden lg:flex')}>
+            <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-amber-400" /> Pré-reserva</span>
+            <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Confirmada</span>
+            <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-blue-500" /> Hospedado</span>
+            <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-slate-500" /> Finalizada</span>
+            <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-slate-800" /> Bloqueio</span>
+            <span className="ml-auto hidden text-slate-400 xl:inline">Clique ou arraste para reservar/bloquear · arraste uma reserva para mover · puxe a borda para redimensionar</span>
           </div>
+          <button
+            onClick={() => setLegendOpen(!legendOpen)}
+            className="ml-auto block rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 shadow-sm cursor-pointer lg:hidden"
+          >
+            {legendOpen ? 'Fechar' : 'Legenda'}
+          </button>
         </div>
       )}
 
