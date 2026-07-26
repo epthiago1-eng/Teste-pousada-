@@ -169,6 +169,16 @@ export default function CalendarPage() {
     return g.filter((x) => x.rooms.length > 0);
   }, [rooms, categories]);
 
+  /**
+   * A diária que começa em `day` cai num final de semana? Sexta e sábado, porque a
+   * diária vai de meio-dia a meio-dia — a diária de sexta só termina sábado ao
+   * meio-dia, e a de sábado só termina domingo ao meio-dia. Por isso o destaque de
+   * fim de semana no corpo do calendário (alinhado à diária) começa sexta ao
+   * meio-dia e termina domingo ao meio-dia, diferente do cabeçalho (que marca o dia
+   * civil e usa sábado/domingo).
+   */
+  const isWeekendNight = (day: Date) => [5, 6].includes(day.getDay());
+
   /** A noite que começa em `day` está livre neste quarto? */
   const nightFree = (roomId: string, day: Date) => {
     const d = format(day, 'yyyy-MM-dd');
@@ -412,13 +422,16 @@ export default function CalendarPage() {
                             key={d.toISOString()}
                             onMouseEnter={() => setHoveredDayIdx(index)}
                             onMouseLeave={() => setHoveredDayIdx((h) => (h === index ? null : h))}
-                            className={cn(
-                              'relative h-[42px] border-b border-slate-100 p-0',
-                              isToday(d) ? 'bg-brand-50/40' : isWeekend(d) ? 'bg-slate-50/60' : 'bg-slate-50/30'
-                            )}
+                            className={cn('relative h-[42px] border-b border-slate-100 p-0', isToday(d) ? 'bg-brand-50/40' : 'bg-slate-50/30')}
                             style={{ zIndex: NUM_DAYS - index }}
                           >
-                            <span className="pointer-events-none absolute inset-y-0 left-1/2 z-0 w-px bg-slate-300" />
+                            {/* Divisória quase imperceptível aqui — a linha da categoria é só uma
+                                faixa de agrupamento, não uma grade a ser lida como o resto do calendário. */}
+                            <span className="pointer-events-none absolute inset-y-0 left-1/2 z-0 w-px bg-slate-200/50" />
+                            {/* Fim de semana alinhado à diária (sexta ao meio-dia → domingo ao meio-dia). */}
+                            {isWeekendNight(d) && (
+                              <span className="pointer-events-none absolute inset-y-0 left-1/2 z-[1] w-full bg-slate-200/50" />
+                            )}
                             {/* Destaque de hover: mesma faixa (meio-dia → meio-dia) do "+" nas linhas de baixo. */}
                             {hoveredDayIdx === index && (
                               <span className="pointer-events-none absolute inset-y-0 left-1/2 z-[6] w-full bg-sky-100/70" />
@@ -459,15 +472,16 @@ export default function CalendarPage() {
                                 key={day.toISOString()}
                                 onMouseEnter={() => setHoveredDayIdx(index)}
                                 onMouseLeave={() => setHoveredDayIdx((h) => (h === index ? null : h))}
-                                className={cn(
-                                  'relative h-[58px] border-b border-slate-100 p-0',
-                                  isToday(day) ? 'bg-brand-50/20' : isWeekend(day) ? 'bg-slate-50/40' : 'bg-white'
-                                )}
+                                className={cn('relative h-[58px] border-b border-slate-100 p-0', isToday(day) ? 'bg-brand-50/20' : 'bg-white')}
                                 style={{ zIndex: NUM_DAYS - index }}
                               >
                                 {/* Divisória no meio-dia: delimita a diária (meio-dia → meio-dia),
                                     e não a virada do dia, para casar com as barras e o botão "+". */}
                                 <span className="pointer-events-none absolute inset-y-0 left-1/2 z-0 w-px bg-slate-300" />
+                                {/* Fim de semana alinhado à diária (sexta ao meio-dia → domingo ao meio-dia). */}
+                                {isWeekendNight(day) && (
+                                  <span className="pointer-events-none absolute inset-y-0 left-1/2 z-[1] w-full bg-slate-100" />
+                                )}
                                 {/* Destaque de hover: mesma faixa (meio-dia → meio-dia) do "+". */}
                                 {hoveredDayIdx === index && (
                                   <span className="pointer-events-none absolute inset-y-0 left-1/2 z-[6] w-full bg-sky-100/70" />
