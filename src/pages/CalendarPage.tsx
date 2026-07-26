@@ -95,6 +95,9 @@ export default function CalendarPage() {
   const [editing, setEditing] = useState<Booking | null>(null);
   const [now, setNow] = useState(new Date());
   const [legendOpen, setLegendOpen] = useState(false);
+  // Destaca a coluna do dia sob o mouse (cabeçalho + todas as linhas), como já
+  // acontece com a linha do quarto ao passar o mouse.
+  const [hoveredDayIdx, setHoveredDayIdx] = useState<number | null>(null);
   // Menu de status do quarto — renderizado via portal (fora da tabela) para não
   // ficar preso atrás de outras linhas/cabeçalhos "sticky" com z-index próprio.
   const [statusMenu, setStatusMenu] = useState<{ roomId: string; top: number; left: number } | null>(null);
@@ -357,12 +360,14 @@ export default function CalendarPage() {
               </tr>
               {/* Linha dos dias */}
               <tr className="sticky top-8 z-[55] shadow-[0_4px_10px_-4px_rgba(0,0,0,0.06)]">
-                {days.map((d) => (
+                {days.map((d, index) => (
                   <th
                     key={d.toISOString()}
+                    onMouseEnter={() => setHoveredDayIdx(index)}
+                    onMouseLeave={() => setHoveredDayIdx((h) => (h === index ? null : h))}
                     className={cn(
-                      'relative h-[52px] border-b border-r border-slate-100 p-0 text-center',
-                      isToday(d) ? 'bg-brand-50' : isWeekend(d) ? 'bg-slate-50' : 'bg-white'
+                      'relative h-[52px] border-b border-slate-100 p-0 text-center',
+                      hoveredDayIdx === index ? 'bg-sky-100/80' : isToday(d) ? 'bg-brand-50' : isWeekend(d) ? 'bg-slate-50' : 'bg-white'
                     )}
                   >
                     {isToday(d) && (
@@ -396,13 +401,23 @@ export default function CalendarPage() {
                           <span className="min-w-0 truncate">{cat.name}</span>
                         </div>
                       </td>
-                      {days.map((d) => {
+                      {days.map((d, index) => {
                         let free: number | null = null;
                         if (isCollapsed) free = catRooms.filter((r) => nightFree(r.id, d)).length;
                         return (
-                          <td key={d.toISOString()} className={cn('relative h-[42px] border-b border-r border-slate-100 p-0', isToday(d) ? 'bg-brand-50/40' : isWeekend(d) ? 'bg-slate-50/60' : 'bg-slate-50/30')}>
+                          <td
+                            key={d.toISOString()}
+                            onMouseEnter={() => setHoveredDayIdx(index)}
+                            onMouseLeave={() => setHoveredDayIdx((h) => (h === index ? null : h))}
+                            className={cn(
+                              'relative h-[42px] border-b border-slate-100 p-0',
+                              hoveredDayIdx === index ? 'bg-sky-100/70' : isToday(d) ? 'bg-brand-50/40' : isWeekend(d) ? 'bg-slate-50/60' : 'bg-slate-50/30'
+                            )}
+                          >
+                            <span className="pointer-events-none absolute inset-y-0 left-1/2 z-0 w-px bg-slate-100" />
+                            {/* O contador é de vagas na diária, então fica centrado na diária, não no dia. */}
                             {free !== null && (
-                              <span className={cn('absolute inset-0 z-10 flex items-center justify-center text-[10px] font-bold', free > 0 ? 'text-emerald-500' : 'text-rose-400')} title={`${free} quarto(s) livre(s)`}>
+                              <span className={cn('absolute inset-y-0 left-1/2 z-10 flex w-full items-center justify-center text-[10px] font-bold', free > 0 ? 'text-emerald-500' : 'text-rose-400')} title={`${free} quarto(s) livre(s)`}>
                                 {free}
                               </span>
                             )}
@@ -434,12 +449,17 @@ export default function CalendarPage() {
                             return (
                               <td
                                 key={day.toISOString()}
+                                onMouseEnter={() => setHoveredDayIdx(index)}
+                                onMouseLeave={() => setHoveredDayIdx((h) => (h === index ? null : h))}
                                 className={cn(
-                                  'relative h-[58px] border-b border-r border-slate-100 p-0',
-                                  isToday(day) ? 'bg-brand-50/20' : isWeekend(day) ? 'bg-slate-50/40' : 'bg-white'
+                                  'relative h-[58px] border-b border-slate-100 p-0',
+                                  hoveredDayIdx === index ? 'bg-sky-100/70' : isToday(day) ? 'bg-brand-50/20' : isWeekend(day) ? 'bg-slate-50/40' : 'bg-white'
                                 )}
                                 style={{ zIndex: NUM_DAYS - index }}
                               >
+                                {/* Divisória no meio-dia: delimita a diária (meio-dia → meio-dia),
+                                    e não a virada do dia, para casar com as barras e o botão "+". */}
+                                <span className="pointer-events-none absolute inset-y-0 left-1/2 z-0 w-px bg-slate-100" />
                                 {/* Sombreamento do passado */}
                                 {(isPast || isToday(day)) && (
                                   <span className="pointer-events-none absolute bottom-0 left-0 top-0 z-0 bg-slate-100/50" style={{ width: isPast ? '100%' : '50%' }} />
