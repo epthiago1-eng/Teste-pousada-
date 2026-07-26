@@ -635,26 +635,46 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* Legenda: fixa na tela, sobrepondo o calendário — não some ao rolar a página.
-          Fica acima do menu inferior mobile (que só desaparece em lg:) e alinhada com
-          o conteúdo (à direita da barra lateral fixa) no desktop. */}
+      {/* Legenda: botão flutuante no canto, estilo QuartoVerde — abre um cartão com os
+          status em "badges", fixo na tela (não some ao rolar a página). Fica acima do
+          menu inferior mobile (que só desaparece em lg:). */}
       {rooms.length > 0 && (
-        <div className="fixed inset-x-0 bottom-16 z-40 border-t border-slate-200 bg-white px-3 py-2 shadow-[0_-4px_10px_-4px_rgba(0,0,0,0.08)] sm:px-4 lg:inset-x-auto lg:bottom-0 lg:left-60 lg:right-0">
-          <div className={cn('flex-wrap items-center gap-3 text-[11px] font-semibold text-slate-500', legendOpen ? 'flex pb-2' : 'hidden lg:flex')}>
-            <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-amber-400" /> Pré-reserva</span>
-            <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Confirmada</span>
-            <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-blue-500" /> Hospedado</span>
-            <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-slate-500" /> Finalizada</span>
-            <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-slate-800" /> Bloqueio</span>
-            <span className="ml-auto hidden text-slate-400 xl:inline">Clique ou arraste para reservar/bloquear · arraste uma reserva para mover · puxe a borda para redimensionar</span>
+        <>
+          {legendOpen && <div className="fixed inset-0 z-40" onClick={() => setLegendOpen(false)} />}
+          <div className="fixed bottom-20 right-4 z-50 lg:bottom-6 lg:right-6">
+            {legendOpen && (
+              <div className="anim-card absolute bottom-full right-0 mb-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+                <div className="border-b border-slate-100 px-4 py-3">
+                  <p className="text-sm font-bold text-slate-800">Legenda</p>
+                </div>
+                <div className="space-y-2 px-4 py-3">
+                  {(
+                    [
+                      { Icon: CircleOff, label: 'Pré-reserva', cls: 'border-amber-400 bg-amber-50 text-amber-700' },
+                      { Icon: Check, label: 'Confirmada', cls: 'border-emerald-500 bg-emerald-50 text-emerald-700' },
+                      { Icon: User, label: 'Hospedado', cls: 'border-blue-500 bg-blue-50 text-blue-700' },
+                      { Icon: Check, label: 'Finalizada', cls: 'border-slate-400 bg-slate-100 text-slate-600' },
+                      { Icon: Lock, label: 'Bloqueio', cls: 'border-slate-800 bg-slate-100 text-slate-800' },
+                    ] as const
+                  ).map(({ Icon, label, cls }) => (
+                    <span key={label} className={cn('flex w-full items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold', cls)}>
+                      <Icon size={13} className="shrink-0" /> {label}
+                    </span>
+                  ))}
+                </div>
+                <p className="border-t border-slate-100 px-4 py-2.5 text-[11px] leading-snug text-slate-400">
+                  Clique ou arraste para reservar/bloquear · arraste uma reserva para mover · puxe a borda para redimensionar.
+                </p>
+              </div>
+            )}
+            <button
+              onClick={() => setLegendOpen((v) => !v)}
+              className="rounded-full bg-slate-800 px-4 py-2.5 text-xs font-bold text-white shadow-lg transition hover:bg-slate-900 cursor-pointer"
+            >
+              {legendOpen ? 'Fechar' : 'Legenda'}
+            </button>
           </div>
-          <button
-            onClick={() => setLegendOpen(!legendOpen)}
-            className="ml-auto block rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 shadow-sm cursor-pointer lg:hidden"
-          >
-            {legendOpen ? 'Fechar' : 'Legenda'}
-          </button>
-        </div>
+        </>
       )}
 
       {statusMenu && createPortal(
