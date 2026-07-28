@@ -88,6 +88,7 @@ export interface Client {
   email?: string;
   phone: string;
   document?: string;
+  documentType?: 'cpf' | 'rg' | 'passport' | 'other';
   nationality?: string;
   birthDate?: string;
   city?: string;
@@ -162,6 +163,7 @@ export interface Booking {
   checkOut: string; // yyyy-MM-dd
   adults: number;
   children: number;
+  childrenAges?: number[]; // idade de cada criança, na mesma ordem — usada na gratuidade do plano tarifário
   totalPrice: number;
   status: BookingStatus;
   channel: Channel;
@@ -258,6 +260,12 @@ export interface RatePlan {
   pricesByDayOfWeek?: Record<number, number>; // 0=domingo (dia em que a noite começa)
   dailyOverrides?: Record<string, number>; // 'yyyy-MM-dd' → preço especial da data
   maxStay?: number;
+  /** Hóspedes incluídos no preço base (adultos + crianças que não contam como gratuidade); acima disso, cobra `extraGuestFee` por noite. Padrão: 2. */
+  baseOccupancy?: number;
+  /** Valor extra por noite, por hóspede além de `baseOccupancy`. */
+  extraGuestFee?: number;
+  /** Crianças com essa idade ou menos não contam na ocupação (gratuidade). */
+  childFreeUpToAge?: number;
   notes?: string;
   validFrom?: string;
   validTo?: string;

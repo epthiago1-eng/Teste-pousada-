@@ -67,6 +67,48 @@ export function planPriceForDate(
   return plan.basePrice;
 }
 
+/**
+ * Quantos hóspedes contam para a ocupação (e para a taxa de hóspede extra) —
+ * crianças com idade igual ou menor que `childFreeUpToAge` do plano não contam.
+ */
+export function countingGuests(adults: number, childrenAges: number[], childFreeUpToAge?: number): number {
+  const payingChildren =
+    childFreeUpToAge == null ? childrenAges.length : childrenAges.filter((age) => age > childFreeUpToAge).length;
+  return adults + payingChildren;
+}
+
+/** Sobretaxa por noite pelos hóspedes além da ocupação base do plano (0 se não houver excedente). */
+export function extraGuestSurcharge(
+  plan: { baseOccupancy?: number; extraGuestFee?: number } | undefined,
+  adults: number,
+  childrenAges: number[]
+): number {
+  if (!plan?.extraGuestFee) return 0;
+  const base = plan.baseOccupancy ?? 2;
+  const counting = countingGuests(adults, childrenAges, (plan as { childFreeUpToAge?: number }).childFreeUpToAge);
+  return Math.max(0, counting - base) * plan.extraGuestFee;
+}
+
+/** Opções de idade para o seletor de criança: "< 1 ano", "1 ano" … "17 anos". */
+export const CHILD_AGE_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: '< 1 ano' },
+  ...Array.from({ length: 17 }, (_, i) => ({ value: i + 1, label: `${i + 1} ano${i + 1 === 1 ? '' : 's'}` })),
+];
+
+/** Nacionalidades comuns para hóspedes de uma pousada brasileira (gentílico). */
+export const NATIONALITIES = [
+  'Brasileira', 'Argentina', 'Uruguaia', 'Paraguaia', 'Chilena', 'Boliviana', 'Peruana', 'Colombiana',
+  'Venezuelana', 'Americana', 'Canadense', 'Mexicana', 'Portuguesa', 'Espanhola', 'Francesa', 'Italiana',
+  'Alemã', 'Britânica', 'Holandesa', 'Suíça', 'Japonesa', 'Chinesa', 'Sul-coreana', 'Australiana', 'Outra',
+];
+
+export const DOCUMENT_TYPE_LABELS: Record<'cpf' | 'rg' | 'passport' | 'other', string> = {
+  cpf: 'CPF',
+  rg: 'RG',
+  passport: 'Passaporte',
+  other: 'Outro',
+};
+
 /** Preenche um modelo de mensagem com as variáveis da reserva. */
 export function fillTemplate(template: string, vars: Record<string, string>) {
   return template.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? `{${key}}`);

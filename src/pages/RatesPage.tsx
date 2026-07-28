@@ -323,6 +323,9 @@ function PlanModal({ plan, categories, onClose, onSave, onDelete, onToggleActive
     notes: plan?.notes ?? '',
     variesByDow: Boolean(plan?.pricesByDayOfWeek && Object.keys(plan.pricesByDayOfWeek).length > 0),
     dow: Object.fromEntries(DOW.map(({ key }) => [key, plan?.pricesByDayOfWeek?.[key] ?? plan?.basePrice ?? 0])) as Record<number, number>,
+    baseOccupancy: plan?.baseOccupancy ?? 2,
+    extraGuestFee: plan?.extraGuestFee ?? 0,
+    childFreeUpToAge: plan?.childFreeUpToAge ?? '',
   });
 
   const submit = () => {
@@ -342,6 +345,9 @@ function PlanModal({ plan, categories, onClose, onSave, onDelete, onToggleActive
       ...(f.maxStay > 0 ? { maxStay: f.maxStay } : {}),
       mealPlan: f.mealPlan,
       cancellationPolicy: f.cancellationPolicy,
+      baseOccupancy: f.baseOccupancy || 2,
+      extraGuestFee: f.extraGuestFee || 0,
+      childFreeUpToAge: f.childFreeUpToAge === '' ? undefined : Number(f.childFreeUpToAge),
       validFrom: f.validFrom || undefined,
       validTo: f.validTo || undefined,
       notes: f.notes.trim() || undefined,
@@ -420,6 +426,28 @@ function PlanModal({ plan, categories, onClose, onSave, onDelete, onToggleActive
               <option value="non-refundable">Não reembolsável</option>
             </Select>
           </Field>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 p-4">
+          <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Ocupação e hóspede extra</p>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Hóspedes incluídos no preço" hint="Acima disso, cobra a taxa extra por noite.">
+              <Input type="number" min={1} value={f.baseOccupancy} onChange={(e) => setF({ ...f, baseOccupancy: Number(e.target.value) })} />
+            </Field>
+            <Field label="Taxa por hóspede extra (por noite)" hint="0 = não cobra hóspede extra.">
+              <Input type="number" min={0} step="0.01" value={f.extraGuestFee || ''} onChange={(e) => setF({ ...f, extraGuestFee: Number(e.target.value) })} placeholder="0,00" />
+            </Field>
+            <Field label="Gratuidade até (idade)" hint="Crianças até essa idade não contam na ocupação. Vazio = sem gratuidade.">
+              <Input
+                type="number"
+                min={0}
+                max={17}
+                value={f.childFreeUpToAge}
+                onChange={(e) => setF({ ...f, childFreeUpToAge: e.target.value === '' ? '' : Number(e.target.value) })}
+                placeholder="Ex.: 5"
+              />
+            </Field>
+          </div>
         </div>
 
         <Field label="Notas"><Textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="Condições, observações internas…" /></Field>
