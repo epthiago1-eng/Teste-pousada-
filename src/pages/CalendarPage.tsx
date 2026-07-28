@@ -8,7 +8,7 @@ import {
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, ArrowRight, BedDouble, Calendar as CalendarIcon, Check, CheckCircle2, ChevronDown, ChevronRight,
+  ArrowLeft, ArrowRight, Baby, BedDouble, Calendar as CalendarIcon, Check, CheckCircle2, ChevronDown, ChevronRight,
   CircleOff, Clock, DollarSign, Globe, GripVertical, List, Lock, Moon, Plus, Sparkles, Unlock, User, X,
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
@@ -16,8 +16,8 @@ import { Button, EmptyState, PageHeader } from '../components/ui';
 import BookingModal from '../components/BookingModal';
 import BookingDetailsModal from '../components/BookingDetailsModal';
 import type { Booking, Room, RoomStatus } from '../types';
-import { ROOM_STATUS_LABELS } from '../types';
-import { bookingBalance, bookingPaid, cn, isActiveBooking, nextReservationNumber, rangesOverlap } from '../lib/utils';
+import { BOOKING_STATUS_LABELS, ROOM_STATUS_LABELS } from '../types';
+import { bookingBalance, bookingPaid, brl, cn, isActiveBooking, nextReservationNumber, nights, rangesOverlap } from '../lib/utils';
 
 const ROOM_STATUS_DOT: Record<RoomStatus, string> = {
   clean: 'bg-emerald-500',
@@ -106,6 +106,9 @@ export default function CalendarPage() {
   const [cellMenu, setCellMenu] = useState<{ roomId: string; checkIn: string; checkOut: string; top: number; left: number } | null>(null);
   // Popup de ação rápida (Desbloquear Datas) ao clicar num bloqueio existente.
   const [blockMenu, setBlockMenu] = useState<{ bookingId: string; top: number; left: number } | null>(null);
+  // Cartão de resumo ao passar o mouse sobre uma reserva.
+  const [bookingHover, setBookingHover] = useState<{ bookingId: string; top: number; left: number } | null>(null);
+  const bookingHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Aviso verde de confirmação (bloqueio/desbloqueio), estilo faixa cheia.
   const [banner, setBanner] = useState<string | null>(null);
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -575,7 +578,17 @@ export default function CalendarPage() {
                                         else setDetailsId(b.id);
                                       }}
                                       onMouseDown={(e) => e.stopPropagation()}
-                                      title={`${isBlock ? 'Bloqueado' : clientName(b.clientId)} · ${format(ci, 'dd/MM')} → ${format(co, 'dd/MM')}`}
+                                      onMouseEnter={(e) => {
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        bookingHoverTimer.current = setTimeout(
+                                          () => setBookingHover({ bookingId: b.id, top: rect.bottom + 6, left: rect.left }),
+                                          300
+                                        );
+                                      }}
+                                      onMouseLeave={() => {
+                                        if (bookingHoverTimer.current) clearTimeout(bookingHoverTimer.current);
+                                        setBookingHover((h) => (h?.bookingId === b.id ? null : h));
+                                      }}
                                       className={cn(
                                         'group/bar absolute bottom-[6px] top-[6px] z-30 flex cursor-pointer select-none flex-col overflow-hidden whitespace-nowrap rounded-[10px] border-l-4 shadow-sm transition-all hover:z-40 hover:scale-[1.01] hover:shadow-md',
                                         barStyle[b.status] ?? 'bg-white border-slate-400',
@@ -767,6 +780,72 @@ export default function CalendarPage() {
             </button>
           </div>
         </>,
+        document.body
+      )}
+
+      {bookingHover && createPortal(
+        (() => {
+          const b = bookings.find((x) => x.id === bookingHover.bookingId);
+          if (!b) return null;
+          const isBlock = b.status === 'blocked';
+          const balance = bookingBalance(b);
+          const fmtLong = (iso: string) => format(parseISO(iso), "d 'de' MMMM 'de' yyyy", { locale: ptBR });
+          return (
+            <div
+              onMouseEnter={() => bookingHoverTimer.current && clearTimeout(bookingHoverTimer.current)}
+              onMouseLeave={() => setBookingHover(null)}
+              className="fixed z-[210] w-72 space-y-1.5 rounded-2xl border border-slate-200 bg-white p-4 text-xs shadow-xl"
+              style={{ top: bookingHover.top, left: bookingHover.left }}
+            >
+              <div className="flex items-center justify-between gap-2 pb-1.5">
+                <span className="font-bold text-slate-400">Código da reserva</span>
+                <span className="font-bold text-slate-700">{b.reservationNumber}</span>
+              </div>
+              {!isBlock && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-slate-400">Hóspede</span>
+                  <span className="flex items-center gap-1.5 font-semibold text-slate-700">
+                    {clientName(b.clientId)}
+                    <span className="flex items-center gap-0.5 text-slate-400"><User size={11} />{b.adults}</span>
+                    {(b.children ?? 0) > 0 && <span className="flex items-center gap-0.5 text-slate-400"><Baby size={11} />{b.children}</span>}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-400">Estado</span>
+                <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-bold text-white', dotStyle[b.status])}>
+                  {BOOKING_STATUS_LABELS[b.status]}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-400">Check-in</span>
+                <span className="font-semibold text-slate-700">{fmtLong(b.checkIn)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-400">Check-out</span>
+                <span className="font-semibold text-slate-700">{fmtLong(b.checkOut)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-400">Duração</span>
+                <span className="flex items-center gap-1 font-semibold text-slate-700"><Moon size={11} />{nights(b.checkIn, b.checkOut)} noite(s)</span>
+              </div>
+              {!isBlock && (
+                <>
+                  <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-1.5">
+                    <span className="text-slate-400">Preço da reserva</span>
+                    <span className="font-bold text-slate-800">{brl(b.totalPrice)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-400">Total devido</span>
+                    <span className={cn('flex items-center gap-1 font-bold', balance > 0 ? 'text-red-600' : 'text-emerald-700')}>
+                      <DollarSign size={12} /> {brl(balance)}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })(),
         document.body
       )}
 
